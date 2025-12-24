@@ -1,13 +1,13 @@
 const mongoose = require('mongoose');
 
 const AdminSchema = new mongoose.Schema({
-  // adminId:{
-  //   type:String,
-  //   required:[true,'adminId is required'],
-  //   unique:true,
-  //   trim:true,
-  //   uppercase:true,
-  // },
+  adminId:{
+    type:String,
+    required:[true,'adminId is required'],
+    unique:true,
+    trim:true,
+    uppercase:true,
+  },
    
   Name:{type:String,trim:true},
   email:{type:String,trim:true,lowercase:true},

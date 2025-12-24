@@ -12,14 +12,13 @@ exports.createTeacher = async (req, res) => {
     const {
       facultyId,
       firstName,
-      lastName,
       department,
       password,
       email,
       role,
     } = req.body;
 
-    if (!facultyId || !firstName || !lastName || !password) {
+    if (!facultyId || !firstName  || !password) {
       return res.status(400).json({
         message:
           "facultyId, firstName, lastName and password are required",
@@ -39,8 +38,7 @@ exports.createTeacher = async (req, res) => {
     const teacher = new Teacher({
       facultyId: normalizedId,
       firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      department: department ? department.trim() : undefined,
+      department: department ,
       email: email ? email.trim().toLowerCase() : undefined,
       password: hashed,
       role: role === "admin" ? "admin" : "teacher", // default teacher

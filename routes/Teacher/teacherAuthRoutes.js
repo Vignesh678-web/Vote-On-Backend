@@ -16,6 +16,17 @@ router.post(
   ctrl.login
 );
 
+router.post(
+  '/verify-otp',
+  [
+    body('facultyId').notEmpty().withMessage('facultyId is required'),
+    body('otp').notEmpty().withMessage('OTP is required')
+  ],
+  ctrl.verifyOtp
+);
+
+
+
 // Protected: get own profile
 router.get('/me', auth, ctrl.getProfile);
 

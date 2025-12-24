@@ -23,9 +23,7 @@ router.get(
 
 // PATCH /api/admin/candidates/:id/approve
 router.patch(
-  "/:id/approve",
-  auth,
-  requireAdmin,
+  "/approve/:id",
   adminCandidatectrl.approveCandidate
 );
 

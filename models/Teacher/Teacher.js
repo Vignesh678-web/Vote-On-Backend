@@ -10,7 +10,6 @@ const TeacherSchema = new mongoose.Schema({
   },
 
   firstName: { type: String, required: [true, 'firstName is required'], trim: true },
-  lastName: { type: String, required: [true, 'lastName is required'], trim: true },
 
   // FIXED: department
   department: { type: String, trim: true },
@@ -19,6 +18,9 @@ const TeacherSchema = new mongoose.Schema({
   password: { type: String, required: [true, 'password is required'] },
 
   role: { type: String, enum: ['admin', 'teacher'], default: 'teacher' },
+  otp: String,
+  otpExpiry: Date,
+
 
   isBlocked : {type: Boolean , default:false},
   

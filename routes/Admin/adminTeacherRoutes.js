@@ -21,28 +21,24 @@ router.post(
   adminCtrl.createTeacher
 );
 
-router.post(
-  '/teacher/reset-password',
-  auth,
-  requireAdmin,
-  [
-    body('facultyId').notEmpty().withMessage('facultyId is required'),
-    body('newPassword').isLength({ min: 6 }).withMessage('newPassword must be at least 6 chars')
-  ],
-  adminCtrl.resetTeacherPassword
-);
+// router.post(
+//   '/teacher/reset-password',
+//   auth,
+//   requireAdmin,
+//   [
+//     body('facultyId').notEmpty().withMessage('facultyId is required'),
+//     body('newPassword').isLength({ min: 6 }).withMessage('newPassword must be at least 6 chars')
+//   ],
+//   adminCtrl.resetTeacherPassword
+// );
 
 router.get(
   "/teacher/all",
-  auth,
-  requireAdmin,
   adminCtrl.getAllTeachers
 );
 
 router.patch(
   "/teacher/:facultyId/toggle-block",
-  auth,
-  requireAdmin,
   adminCtrl.toggleBlockTeacher
 );
 

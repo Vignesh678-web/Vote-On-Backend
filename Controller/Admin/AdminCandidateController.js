@@ -10,6 +10,7 @@ exports.approveCandidate = async(req,res) => {
 
     candidate.isApproved = true;
     candidate.iscandidate = true;
+    candidate.createdByTeacher=true;
     await candidate.save();
 
     res.json({message:"Candidate approved",candidate});

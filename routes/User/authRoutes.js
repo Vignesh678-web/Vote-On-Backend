@@ -6,8 +6,12 @@ const {
   loginwithPassword
 } = require("../../Controller/User/authController");
 
-router.post("/send-otp",sendOtp);
-// router.post("/verify-otp", verifyOtp);
-router.post("/login",loginwithPassword);
+// Route to send OTP using Admission Number
+router.post("/send-otp", sendOtp);
 
-module.exports = router; 
+// Route to verify OTP (Now uncommented)
+router.post("/verify-otp", verifyOtp);
+
+// router.post("/login", loginwithPassword);
+
+module.exports = router;

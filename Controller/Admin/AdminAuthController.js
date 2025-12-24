@@ -27,49 +27,73 @@ function createToken(admin) {
 
 
 exports.login = async (req, res) => {
+  console.log("LOGIN BODY:", req.body);
+
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res
-        .status(400)
-        .json({ message: 'Validation failed', errors: errors.array() });
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array(),
+      });
     }
 
     const { adminId, password } = req.body;
 
-    const normalizedId = String(adminId).trim().toUpperCase();
+    if (!adminId || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Admin ID and password are required',
+      });
+    }
+
+    const normalizedId = adminId.trim().toUpperCase();
+    console.log("NORMALIZED ADMIN ID:", normalizedId);
 
     const admin = await Admin.findOne({ adminId: normalizedId });
+    console.log("ADMIN FROM DB:", admin);
+
     if (!admin) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
+      });
     }
 
-    const match = await bcrypt.compare(password, admin.password);
-    if (!match) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    const isMatch = await bcrypt.compare(password, admin.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials',
+      });
     }
 
-    const token = createToken(admin);
+    // 🔐 GENERATE OTP
+    const otp = generateOtp(6);
 
-    const adminOut = {
-      id: admin._id,
-      adminId: admin.adminId,
-      firstName: admin.firstName,
-      lastName: admin.lastName,
-      email: admin.email,
-      role: admin.role,
-    };
+    admin.otp = otp;
+    admin.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await admin.save();
 
-    return res.json({
-      message: 'Login successful',
-      admin: adminOut,
-      token,
+    // 📧 SEND OTP EMAIL
+    await sendOtpEmail(admin.email, otp);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent to registered email',
+      admin: {
+        adminId: admin.adminId,
+        email: admin.email,
+      },
     });
+
   } catch (err) {
     console.error('admin.login error:', err);
-    return res
-      .status(500)
-      .json({ message: 'Server error', error: err.message });
+    return res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
   }
 };
 
@@ -105,64 +129,69 @@ function generateOtp(length = 6) {
 
 exports.createAdmin = async (req, res) => {
   try {
-console.log("ethiiiii");
+    const { adminId, password, Name, email } = req.body;
 
-    const { password, Name, email } = req.body;
-    console.log(req.body,"jhhhhhhhhhhhhhh");
-    
-
-    if (!email) {
-      return res.status(400).json({ message: 'Email is required to send OTP' });
+    if (!adminId || !password || !email) {
+      return res.status(400).json({
+        message: 'adminId, password and email are required',
+      });
     }
 
+    const normalizedAdminId = adminId.trim().toUpperCase();
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const existing = await Admin.findOne({email});
-    console.log(existing,"llllllllllllllllllllllll");
-    
-    if (existing) {
+    const existingAdminId = await Admin.findOne({
+      adminId: normalizedAdminId,
+    });
+
+    if (existingAdminId) {
       return res.status(409).json({ message: 'Admin ID already exists' });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashed = await bcrypt.hash(password, salt);
+    const existingEmail = await Admin.findOne({
+      email: normalizedEmail,
+    });
+
+    if (existingEmail) {
+      return res.status(409).json({ message: 'Email already exists' });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
 
     const admin = new Admin({
-      Name: Name,
-      email: email,
+      adminId: normalizedAdminId,
+      Name,
+      email: normalizedEmail,
       password: hashed,
+      role: 'admin',
     });
 
     await admin.save();
 
-    // ===== Send OTP =====
     const otp = generateOtp(6);
-
-    // save otp to admin doc (temporary) for verification later
     admin.otp = otp;
-    admin.otpExpiry = Date.now() + 10 * 60 * 1000; // expire in 5 minutes
-
+    admin.otpExpiry = Date.now() + 10 * 60 * 1000;
     await admin.save();
-console.log("ok");
 
     await sendOtpEmail(admin.email, otp);
 
-
     return res.status(201).json({
+      success: true,
       message: 'Admin created successfully. OTP sent to email!',
-      success:true,
       admin: {
         adminId: admin.adminId,
         email: admin.email,
-      }
+      },
     });
-
   } catch (err) {
     console.error('admin.createAdmin error:', err);
-    return res
-      .status(500)
-      .json({ message: 'Server error', error: err.message });
+    return res.status(500).json({
+      message: 'Server error',
+      error: err.message,
+    });
   }
 };
+
 // controllers/AdminAuthController.js (or otpController.js)
 
 exports.veriffffyOtp = async (req, res) => {
