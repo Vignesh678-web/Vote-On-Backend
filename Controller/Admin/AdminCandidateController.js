@@ -1,48 +1,103 @@
-const Candidate = require("../../models/candidate/Candidate")
+const Student =require('../../models/student/student.js')
 
-exports.approveCandidate = async(req,res) => {
+//candidate approval by admin
+
+
+exports.approveCandidate = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { studentId } = req.params;
 
-    const candidate = await Candidate.findById(id);
-    if(!candidate)
-      return res.status(404).json({message:"candidate not found"});
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
 
-    candidate.isApproved = true;
-    candidate.iscandidate = true;
-    candidate.createdByTeacher=true;
-    await candidate.save();
+    if (student.iscandidate === false) {
+      return res.status(400).json({
+        message: "Student has not been nominated yet"
+      });
+    }
 
-    res.json({message:"Candidate approved",candidate});
-  } catch(err) {
-    console.error("approveCandidate error:",err);
-    res.status(500).json({message:"Server error",error:err.message});
+    if (student.isApproved === true) {
+      return res.status(400).json({
+        message: "Student is already approved as candidate"
+      });
+    }
 
+    student.isApproved = true;
+    student.electionStatus = "Active";
+
+    await student.save();
+
+    return res.json({
+      message: "Candidate approved successfully",
+      student
+    });
+
+  } catch (err) {
+    console.error("approveCandidate error:", err);
+    return res.status(500).json({ 
+      message: "Server error", 
+      error: err.message 
+    });
   }
 };
 
-exports.rejectCandidate = async (req,res) => {
-  try{
-    const {id} = req.params;
 
-    const candidate = await Candidate.findById(id);
-    if(!candidate)
-      return res.status(404).json({message:"candidate not found"});
 
-    candidate.isApproved = false;
-    candidate.iscandidate = false;
-    await candidate.save();
+//candidate rejection by admin
+exports.rejectCandidate = async (req, res) => {
+  try {
+    const { studentId } = req.params;
 
-    res.json({message:"Candidate rejected", candidate});
-  } catch(err) {
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // If they're not even nominated, rejecting makes no sense
+    if (!student.iscandidate) {
+      return res.status(400).json({
+        message: "Student is not nominated, cannot reject"
+      });
+    }
+
+    // Reset candidate status
+    student.iscandidate = false;
+    student.isApproved = false;
+    student.electionStatus = null;
+    student.votesCount = 0;
+    student.position = null;
+    student.manifesto = null;
+    student.photoUrl = null; // optional: remove campaign photo
+
+    await student.save();
+
+    return res.json({
+      message: "Candidate rejected successfully",
+      student
+    });
+
+  } catch (err) {
     console.error("rejectCandidate error:", err);
-    res.status(500).json({message:"Server Error",error:err.message});
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message
+    });
   }
 };
+
+
+
+
+
+
+
+
 
 exports.getPendingCandidates = async (req, res) => {
   try {
-    const pending = await Candidate.find({ isApproved: false })
+    const pending = await student.find({ isApproved: false })
       .populate("student")
       .lean();
 
@@ -63,13 +118,13 @@ exports.createCandidateByAdmin = async(req,res) => {
       });
     }
 
-    const existing = await Candidate.findOne({student});
+    const existing = await student.findOne({student});
     if(existing) {
       return res.status(409).json({
         message:"candidate already exists for this student",
       });
     }
-    const candidate = new Candidate ({
+    const candidate = new student ({
       student,
       position,
       manifesto,

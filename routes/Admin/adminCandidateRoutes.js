@@ -21,18 +21,11 @@ router.get(
   adminCandidatectrl.getPendingCandidates
 );
 
-// PATCH /api/admin/candidates/:id/approve
-router.patch(
-  "/approve/:id",
-  adminCandidatectrl.approveCandidate
-);
+
+router.patch("/approve/:studentId",adminCandidatectrl.approveCandidate);
 
 // PATCH /api/admin/candidates/:id/reject
 router.patch(
-  "/:id/reject",
-  auth,
-  requireAdmin,
-  adminCandidatectrl.rejectCandidate
-);
+  "/reject/:studentId", adminCandidatectrl.rejectCandidate);
 
 module.exports = router;

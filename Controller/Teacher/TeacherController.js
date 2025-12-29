@@ -1,13 +1,12 @@
+
+
 // Controller/Teacher/teacherController.js
 const { default: mongoose } = require('mongoose');
-const Candidate = require('../../models/candidate/Candidate');
-const Student = require('../../models/Teacher/Student'); // adjust path if you put model elsewhere
+const Student =require('../../models/student/student.js')
 const { v4: uuidv4 } = require("uuid");
 
-/**
- * Register a student (POST /api/teacher/students)
- * Body: { firstName, lastName, admissionNumber, attendancePercentage, className?, section? }
- */
+
+// make studetnt candidate
 exports.registerStudent = async (req, res) => {
   try {
     const { firstName, lastName, admissionNumber, attendancePercentage, className, section } = req.body;
@@ -53,16 +52,23 @@ exports.registerStudent = async (req, res) => {
 
 exports.listStudents = async (req, res) => {
   try {
-    // You can filter by class/section/createdBy etc.
     const filter = {};
+
     if (req.query.className) filter.className = req.query.className;
     if (req.query.section) filter.section = req.query.section;
 
-    const students = await Student.find(filter).sort({ createdAt: -1 }).lean();
-    res.json({ students });
+    const students = await student.find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      success: true,
+      count: students.length,
+      students,
+    });
   } catch (err) {
-    console.error('listStudents error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("listStudents error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -107,37 +113,6 @@ exports.deleteStudent = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
-
-
-exports.nominate = async (req, res) => {
-  try {
-    const { studentId, position, manifesto } = req.body;
-
-    const existing = await Candidate.findOne({ student: studentId });
-    if (existing) {
-      return res.status(400).json({ message: "Already nominated" });
-    }
-
-    const newCandidate = new Candidate({
-      student: studentId,
-      position,
-      manifesto,
-      iscandidate: true,
-      isApproved: false,
-      createdByTeacher: true,
-      createdByAdmin: false,
-      createdBy: req.user.id
-    });
-
-    await newCandidate.save();
-    res.json({ message: "Candidate nominated by teacher", newCandidate });
-
-  } catch (err) {
-    console.error("Teacher nomination error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
 
 // class level election 
 exports.createClassElection = async (req, res) => {
@@ -286,3 +261,132 @@ exports.listClassElections = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
+/* add update */
+exports.Addattendance = async (req, res) => {
+  try {
+    const { studentId, attendancePercentage } = req.body;
+
+    const attendence = Number(attendancePercentage);
+    if (isNaN(attendence) || attendence < 0 || attendence > 100) {
+      return res.status(400).json({ message: 'attendancePercentage must be a number between 0 and 100.' });
+    }
+
+    const updatedStudent = await Student.findByIdAndUpdate(
+      studentId,
+      {  attendence: attendence },   // <-- make sure this matches your schema field
+      { new: true }                 // return updated document
+    );
+
+    if (!updatedStudent) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    return res.json({ message: 'Attendance added', student: updatedStudent });
+
+  } catch (err) {
+    console.error('Attendance error:', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// update attendance
+exports.updateAttendance = async (req, res) => {
+
+  try {
+    const { studentId, attendancePercentage } = req.body;
+    const attendence = Number(attendancePercentage);
+    if (Number.isNaN(attendence) || attendence < 0 || attendence > 100) {
+      return res.status(400).json({ message: 'attendancePercentage must be a number between 0 and 100.' });
+    }
+    const student = await Student.findByIdAndUpdate(
+      studentId,
+      { attendence: attendence },
+      { new: true }
+    );
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+    res.json({ message: 'Attendance updated', student });
+  } catch (err) {
+    console.error('updateAttendance error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// nominate student as candidate
+
+
+exports.nominateCandidate = async (req, res) => {
+  try {
+    const { studentId, position, manifesto } = req.body;
+
+    if (!studentId) {
+      return res.status(400).json({ message: "studentId is required" });
+    }
+
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // file uploaded? -> req.file.path contains cloudinary URL
+    const photoUrl = req.file ? req.file.path : student.photoUrl;
+    console.log("Photo URL:", photoUrl);
+    
+
+    student.iscandidate = true;
+    student.isApproved = false;      
+    student.position = position || null;
+    student.manifesto = manifesto || null;
+    student.photoUrl = photoUrl;     // <--- IMPORTANT
+    student.electionStatus = "Draft";
+     
+
+    await student.save();
+
+    return res.json({
+      message: "Student nominated successfully. Awaiting admin approval.",
+      student
+    });
+
+  } catch (err) {
+    console.error("nominateCandidate error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
+//list the approved candidates by admin
+
+
+
+exports.listApprovedCandidates = async (req, res) => {
+  try {
+    // pull only fully approved candidates
+    const candidates = await Student.find({
+      iscandidate: true,
+      isApproved: true
+    }).select('name classname section position photoUrl manifesto  attendence'); 
+    // .select() is optional — it's just to return only relevant fields
+
+    if (!candidates || candidates.length === 0) {
+      return res.status(404).json({ message: "No approved candidates found" });
+    }
+
+    return res.json({
+      message: "Approved candidates retrieved successfully",
+      candidates
+    });
+
+  } catch (err) {
+    console.error("listApprovedCandidates error:", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message
+    });
+  }
+};
+
+
+

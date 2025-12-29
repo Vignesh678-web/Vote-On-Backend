@@ -9,7 +9,7 @@ const {createAdmin
   ,login,
   veriffffyOtp
 }=require("../../Controller/Admin/AdminAuthController");
-const { veriffyOtp } = require('../../Controller/User/authController');
+const { veriffyOtp } = require('../../Controller/Student/studentController');
 
 router.post ('/login',login);
 router.post('/create',createAdmin);

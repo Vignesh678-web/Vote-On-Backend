@@ -4,7 +4,8 @@ dotenv.config();
 const express = require('express');
 const cors = require("cors");
 const connectDB = require("./config/db");
-const userAuth = require("./routes/User/authRoutes")
+
+const StudentRoutes = require("./routes/Student/StudentRoutes")
 const teacherRoutes = require('./routes/Teacher/TeacherRoutes');
 const teacherAuthRoutes = require('./routes/Teacher/teacherAuthRoutes');
 const adminTeacherRoutes = require('./routes/Admin/adminTeacherRoutes');
@@ -24,7 +25,7 @@ app.use(cors({
 
 app.use(express.json());
 
-app.use("/api/auth", userAuth);
+app.use("/api/student", StudentRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/teacher/auth',teacherAuthRoutes);
 app.use('/api/admin',adminTeacherRoutes);

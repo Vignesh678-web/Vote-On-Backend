@@ -3,22 +3,20 @@ const router = express.Router();
 const { body } = require("express-validator")
 const teacherController = require('../../Controller/Teacher/TeacherController');
 const auth = require("../../middleware/auth");
+const upload = require('../../middleware/upload');
 
 
 router.post('/students', teacherController.registerStudent);
 router.get('/students', teacherController.listStudents);
+router.post('/attendance', teacherController.Addattendance);
+router.post('/update-attendance', teacherController.updateAttendance);
 router.get('/students/:id', teacherController.getStudent);
 router.put('/students/:id', teacherController.updateStudent);
 router.delete('/students/:id',teacherController.deleteStudent);
+router.post( '/nominate', upload.single("photo"),teacherController.nominateCandidate);
+router.get('/approved-candidates', teacherController.listApprovedCandidates);
 
 
-
-
-router.post(
-  '/candidates/nominate',
-  auth,
-  teacherController.nominate,
-);
 
 router.post(
   '/class-election/create',

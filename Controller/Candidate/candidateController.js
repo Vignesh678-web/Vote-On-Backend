@@ -1,8 +1,9 @@
-const Student = require("../../models/Teacher/Student");
-const Candidate = require("../../models/candidate/Candidate");
-const {validationResult} = require("express-validator");
 
-exports.addCandidate = async(req,res) => {
+const {validationResult} = require("express-validator");
+const student =require('../../models/student/student.js');
+
+
+exports.addstudent = async(req,res) => {
 
   try{
     const errors = validationResult(req);
@@ -11,7 +12,7 @@ exports.addCandidate = async(req,res) => {
     }
     const {studentId,position,manifesto,photoUrl} = req.body;
 
-    const student = await Student.findById(studentId);
+    const student = await student.findById(studentId);
     if(!student) {
       return res.status(404).json({message:"Student not found" });
     }
@@ -39,47 +40,47 @@ exports.addCandidate = async(req,res) => {
    }
   };
 
-  exports.getCandidates = async(req,res) => {
+  exports.getstudent = async(req,res) => {
     try{
-      const candidates = await Candidate.find().populate("student","-createdBy").lean();
+      const student = await student.find().populate("student","-createdBy").lean();
 
-      res.json({candidates});
+      res.json({student});
     } catch(err) {
       console.error("getCandidates error:",err);
       res.status(500).json({message:"Server Error", error:err.message});
     }
   };
 
-  exports.getCandidate = async(req,res) => {
+  exports.getstudent = async(req,res) => {
     try {
-      const candidate = await Candidate.findById(req.params.id).populate("student");
-      if(!candidate) return res.status(404).json({message:"Candidate not found"});
+      const student = await student.findById(req.params.id).populate("student");
+      if(!student) return res.status(404).json({message:"student not found"});
 
-      res.json({candidate});
+      res.json({student});
     } catch(err) {
-      console.error("getCandidate error",err);
+      console.error("getStudent error",err);
       res.status(500).json({message:"server error", error:err.message});
     }
   };
 
-  exports.removeCandidate = async (req, res) => {
+  exports.removestudent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const candidate = await Candidate.findById(id);
-    if (!candidate) {
-      return res.status(404).json({ message: "Candidate not found" });
+    const student = await student.findById(id);
+    if (!student) {
+      return res.status(404).json({ message: "student not found" });
     }
 
-    await Candidate.findByIdAndDelete(id);
+    await student.findByIdAndDelete(id);
 
-    return res.json({ message: "Candidate removed successfully" });
+    return res.json({ message: "student removed successfully" });
   } catch (err) {
-    console.error("removeCandidate error:", err);
+    console.error("removeStudent error:", err);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 exports.getApproved = async (req, res) => { 
-  const candidates = await Candidate.find({ isApproved: true }) .populate("student").lean();
-   res.json({ candidates }); 
+  const students = await student.find({ isApproved: true }) .populate("student").lean();
+   res.json({ students }); 
 };

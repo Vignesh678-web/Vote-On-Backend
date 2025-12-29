@@ -8,7 +8,7 @@ const { validationResult } = require('express-validator');
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
-const sendOtpEmail =require('../../config/mailer')
+const sendOtpEmail = require('../../config/mailer')
 if (!JWT_SECRET) {
   throw new Error('Missing JWT_SECRET environment variable for admin auth');
 }
@@ -198,7 +198,7 @@ exports.veriffffyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
     console.log("ooooooooooooooooooooooooooooo");
-    
+
 
     if (!email || !otp) {
       return res.status(400).json({ message: 'Email and OTP are required' });
@@ -226,7 +226,7 @@ exports.veriffffyOtp = async (req, res) => {
     admin.otpExpiry = undefined;  // Clear expiry
     await admin.save();
 
-    return res.json({ message: 'OTP verified successfully' ,success :true});
+    return res.json({ message: 'OTP verified successfully', success: true });
   } catch (err) {
     console.error('OTP verify error:', err);
     return res.status(500).json({ message: 'Server error', error: err.message });
