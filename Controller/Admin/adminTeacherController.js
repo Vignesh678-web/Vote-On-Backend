@@ -11,17 +11,17 @@ exports.createTeacher = async (req, res) => {
   try {
     const {
       facultyId,
-      firstName,
+      Name,
       department,
       password,
       email,
       role,
     } = req.body;
 
-    if (!facultyId || !firstName  || !password) {
+    if (!facultyId || Name  || !password) {
       return res.status(400).json({
         message:
-          "facultyId, firstName, lastName and password are required",
+          "facultyId,Name and password are required",
       });
     }
 
@@ -37,9 +37,9 @@ exports.createTeacher = async (req, res) => {
 
     const teacher = new Teacher({
       facultyId: normalizedId,
-      firstName: firstName.trim(),
-      department: department ,
-      email: email ? email.trim().toLowerCase() : undefined,
+      Name: Name,
+      department: department,
+      email: email ? email.toLowerCase() : undefined,
       password: hashed,
       role: role === "admin" ? "admin" : "teacher", // default teacher
       // isBlocked will default to false from schema
@@ -50,8 +50,8 @@ exports.createTeacher = async (req, res) => {
     const out = {
       id: teacher._id,
       facultyId: teacher.facultyId,
-      firstName: teacher.firstName,
-      lastName: teacher.lastName,
+      Name: teacher.Name,
+      
       department: teacher.department,
       email: teacher.email,
       role: teacher.role,
@@ -132,43 +132,60 @@ exports.getAllTeachers = async (req, res) => {
  * PATCH /api/admin/teacher/:facultyId/toggle-block
  * Toggles isBlocked for a teacher
  */
+
+const mongoose = require("mongoose");
+
 exports.toggleBlockTeacher = async (req, res) => {
   try {
-    const { facultyId } = req.params;
-    if (!facultyId) {
-      return res.status(400).json({ message: "facultyId is required" });
+    const { facultyId } = req.params; // this is actually _id
+
+    console.log("id",facultyId);
+    
+    // Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(facultyId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid teacher ID",
+      });
     }
 
-    const normalizedId = String(facultyId).trim().toUpperCase();
+    // ✅ THIS IS THE FIX
+    const teacher = await Teacher.findById(facultyId);
 
-    const teacher = await Teacher.findOne({ facultyId: normalizedId });
     if (!teacher) {
-      return res.status(404).json({ message: "Teacher not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Teacher not found",
+      });
     }
 
     teacher.isBlocked = !teacher.isBlocked;
     await teacher.save();
 
-    const out = {
-      id: teacher._id,
-      facultyId: teacher.facultyId,
-      firstName: teacher.firstName,
-      lastName: teacher.lastName,
-      department: teacher.department,
-      email: teacher.email,
-      role: teacher.role,
-      isBlocked: teacher.isBlocked,
-      updatedAt: teacher.updatedAt,
-    };
-
-    return res.json({
-      message: teacher.isBlocked ? "Teacher blocked" : "Teacher unblocked",
-      teacher: out,
+    return res.status(200).json({
+      success: true,
+      message: teacher.isBlocked
+        ? "Teacher blocked"
+        : "Teacher unblocked",
+      teacher: {
+        id: teacher._id,
+        facultyId: teacher.facultyId,
+        firstName: teacher.firstName,
+        department: teacher.department,
+        email: teacher.email,
+        role: teacher.role,
+        isBlocked: teacher.isBlocked,
+        updatedAt: teacher.updatedAt,
+      },
     });
+
   } catch (err) {
-    console.error("admin.toggleBlockTeacher error:", err);
-    return res
-      .status(500)
-      .json({ message: "Server error", error: err.message });
+    console.error("toggleBlockTeacher error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
+

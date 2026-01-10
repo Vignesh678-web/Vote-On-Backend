@@ -27,8 +27,6 @@ function createToken(admin) {
 
 
 exports.login = async (req, res) => {
-  console.log("LOGIN BODY:", req.body);
-
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -48,12 +46,9 @@ exports.login = async (req, res) => {
       });
     }
 
-    const normalizedId = adminId.trim().toUpperCase();
-    console.log("NORMALIZED ADMIN ID:", normalizedId);
+    const normalizedAdminId = adminId.trim().toUpperCase();
 
-    const admin = await Admin.findOne({ adminId: normalizedId });
-    console.log("ADMIN FROM DB:", admin);
-
+    const admin = await Admin.findOne({ adminId: normalizedAdminId });
     if (!admin) {
       return res.status(401).json({
         success: false,
@@ -69,22 +64,17 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 🔐 GENERATE OTP
-    const otp = generateOtp(6);
-
-    admin.otp = otp;
-    admin.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await admin.save();
-
-    // 📧 SEND OTP EMAIL
-    await sendOtpEmail(admin.email, otp);
+    // 🔐 GENERATE JWT
+    const token = createToken(admin);
 
     return res.status(200).json({
       success: true,
-      message: 'OTP sent to registered email',
+      message: 'Admin logged in successfully',
+      token,
       admin: {
         adminId: admin.adminId,
         email: admin.email,
+        role: admin.role,
       },
     });
 
@@ -96,7 +86,6 @@ exports.login = async (req, res) => {
     });
   }
 };
-
 
 exports.getProfile = async (req, res) => {
   try {

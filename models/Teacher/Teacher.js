@@ -5,14 +5,14 @@ const TeacherSchema = new mongoose.Schema({
     type: String,
     required: [true, 'facultyId is required'],
     unique: true,
-    trim: true,
+    
     uppercase: true
   },
 
-  firstName: { type: String, required: [true, 'firstName is required'], trim: true },
+  Name: { type: String },
 
   // FIXED: department
-  department: { type: String, trim: true },
+  department: { type: String,  },
 
   email: { type: String, trim: true, lowercase: true },
   password: { type: String, required: [true, 'password is required'] },

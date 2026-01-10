@@ -47,6 +47,12 @@ exports.login = async (req, res) => {
         message: "Invalid credentials",
       });
     }
+    if(teacher.isBlocked){
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been blocked. Please contact the administrator.",
+      });
+    }
 
     const match = await bcrypt.compare(password, teacher.password);
     if (!match) {
@@ -56,18 +62,18 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 🔐 GENERATE OTP
-    const otp = generateOtp(6);
-    teacher.otp = otp;
-    teacher.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await teacher.save();
+    // // 🔐 GENERATE OTP
+    // const otp = generateOtp(6);
+    // teacher.otp = otp;
+    // teacher.otpExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+    // await teacher.save();
 
-    // 📧 SEND OTP EMAIL
-    await sendOtpEmail(teacher.email, otp);
+    // // 📧 SEND OTP EMAIL
+    // await sendOtpEmail(teacher.email, otp);
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent to registered email",
+      message: "Teacher logged in successfully",
       teacher: {
         facultyId: teacher.facultyId,
         email: teacher.email,

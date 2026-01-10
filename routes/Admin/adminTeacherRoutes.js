@@ -11,13 +11,6 @@ const requireAdmin = require('../../middleware/requireAdmin');
 router.post(
   '/teacher/create',
   auth,
-  requireAdmin,
-  [
-    body('facultyId').notEmpty().withMessage('facultyId is required'),
-    body('firstName').notEmpty().withMessage('firstName is required'),
-    body('lastName').notEmpty().withMessage('lastName is required'),
-    body('password').isLength({ min: 6 }).withMessage('password must be at least 6 chars')
-  ],
   adminCtrl.createTeacher
 );
 
@@ -38,9 +31,11 @@ router.get(
 );
 
 router.patch(
-  "/teacher/:facultyId/toggle-block",
+  "/teacher/toggle-block/:facultyId",
   adminCtrl.toggleBlockTeacher
 );
+
+
 
 module.exports = router;
 
