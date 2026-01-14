@@ -15,7 +15,7 @@ router.put('/students/:id', teacherController.updateStudent);
 router.delete('/students/:id',teacherController.deleteStudent);
 router.post( '/nominate', upload.single("photo"),teacherController.nominateCandidate);
 router.get('/approved-candidates', teacherController.listApprovedCandidates);
-
+router.put( "/candidates/adddetails/:studentId",upload.single("photo"),teacherController.AddCandidateDetails);
 
 
 router.post(

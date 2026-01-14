@@ -43,6 +43,27 @@ exports.approveCandidate = async (req, res) => {
   }
 };
 
+exports.getCandidates = async (req, res) => {
+  console.log("Fetching candidates...");
+  
+  try {
+    const candidates = await Student.find({ iscandidate: true })
+      .select(
+        "_id name email admissionNumber attendence iscandidate isApproved isverified position manifesto photoUrl className section electionStatus votesCount createdAt"
+      )
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.status(200).json(candidates);
+  } catch (err) {
+    console.error("getCandidates error:", err);
+    res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
 
 
 //candidate rejection by admin

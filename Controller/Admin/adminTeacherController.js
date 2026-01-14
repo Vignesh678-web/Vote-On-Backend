@@ -18,7 +18,7 @@ exports.createTeacher = async (req, res) => {
       role,
     } = req.body;
 
-    if (!facultyId || Name  || !password) {
+    if (!facultyId || !Name  || !password) {
       return res.status(400).json({
         message:
           "facultyId,Name and password are required",

@@ -26,19 +26,30 @@ const candidateSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-     attendence: {
+    attendence: {
       type: Number,
       default: 0,
     },
-  
-    manifesto: {
+
+    candidateBio: {
       type: String,
       trim: true,
     },
 
+      manifestoPoints: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+
     photoUrl: {
       type: String,
       trim: true,
+    },
+    hasWon: {
+      type: Boolean,
+      default: false,
     },
 
     iscandidate: {
@@ -56,11 +67,11 @@ const candidateSchema = new mongoose.Schema(
     },
 
     votedFor: {
-    type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.ObjectId,
       ref: "student",        // reference to candidate
       default: null
-  },
-  
+    },
+
     classElectionId: {
       type: String,
       default: null,
@@ -81,10 +92,10 @@ const candidateSchema = new mongoose.Schema(
       enum: ["Draft", "Active", "Completed", null],
       default: null,
     },
-    otp:{
+    otp: {
       type: String,
     },
-    otpExpiry:{
+    otpExpiry: {
       type: Date,
     },
 

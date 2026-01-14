@@ -4,6 +4,12 @@ const router = express.Router();
 const adminCandidatectrl = require("../../Controller/Admin/AdminCandidateController");
 const auth = require("../../middleware/auth");
 const requireAdmin = require("../../middleware/requireAdmin");
+router.get(
+  "/get-candidates",
+  auth,
+  adminCandidatectrl.getCandidates
+);
+
 
 // POST /api/admin/candidates/create
 router.post(
@@ -27,5 +33,7 @@ router.patch("/approve/:studentId",adminCandidatectrl.approveCandidate);
 // PATCH /api/admin/candidates/:id/reject
 router.patch(
   "/reject/:studentId", adminCandidatectrl.rejectCandidate);
+
+  
 
 module.exports = router;
