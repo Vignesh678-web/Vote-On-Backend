@@ -89,8 +89,8 @@ const candidateSchema = new mongoose.Schema(
 
     electionStatus: {
       type: String,
-      enum: ["Draft", "Active", "Completed", null],
-      default: null,
+      enum: ["Draft", "Active", "Completed"],
+      default: "Draft",
     },
     otp: {
       type: String,

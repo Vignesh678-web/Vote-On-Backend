@@ -2,7 +2,7 @@
 
 // Controller/Teacher/teacherController.js
 const { default: mongoose } = require('mongoose');
-const Student =require('../../models/student/student.js')
+const Student = require('../../models/student/student.js')
 const { v4: uuidv4 } = require("uuid");
 
 
@@ -348,15 +348,15 @@ exports.nominateCandidate = async (req, res) => {
     // file uploaded? -> req.file.path contains cloudinary URL
     const photoUrl = req.file ? req.file.path : student.photoUrl;
     console.log("Photo URL:", photoUrl);
-    
+
 
     student.iscandidate = true;
-    student.isApproved = false;      
+    student.isApproved = false;
     student.position = position || null;
     student.manifesto = manifesto || null;
     student.photoUrl = photoUrl;     // <--- IMPORTANT
     student.electionStatus = "Draft";
-     
+
 
     await student.save();
 
@@ -397,12 +397,86 @@ exports.listApprovedCandidates = async (req, res) => {
 };
 
 
-exports.AddCandidateDetails = async (req, res) => {
+// POST: Add candidate details (candidateBio, manifestoPoints, photo)
+exports.AddCandidateDetailsPost = async (req, res) => {
   try {
-    console.log("jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj");
-    
     const { studentId } = req.params;
-    const { candidateBio } = req.body;
+    const { candidateBio, manifestoPoints } = req.body;
+
+    if (!studentId) {
+      return res.status(400).json({ message: "studentId is required" });
+    }
+
+    const student = await Student.findById(studentId);
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // 🔒 MUST be approved candidate
+    if (!student.iscandidate || !student.isApproved) {
+      return res.status(403).json({
+        message: "Only approved candidates can add candidate details",
+      });
+    }
+
+    // 🔒 Prevent editing after election starts
+    if (student.electionStartAt && new Date(student.electionStartAt) <= new Date()) {
+      return res.status(403).json({
+        message: "Candidate details cannot be edited once election has started",
+      });
+    }
+
+    /* ---------------- ADD/UPDATE FIELDS ---------------- */
+
+    // Candidate Bio
+    if (candidateBio && typeof candidateBio === "string") {
+      student.candidateBio = candidateBio.trim();
+    }
+
+    // Manifesto Points
+    if (manifestoPoints) {
+      const points = Array.isArray(manifestoPoints)
+        ? manifestoPoints
+        : [manifestoPoints];
+
+      student.manifestoPoints = points
+        .map(p => (typeof p === "string" ? p.trim() : String(p).trim()))
+        .filter(p => p.length > 0);
+    }
+
+    // Photo (Cloudinary)
+    if (req.file) {
+      student.photoUrl = req.file.path; // Cloudinary URL
+    }
+
+    await student.save();
+
+    return res.status(201).json({
+      message: "Candidate details added successfully",
+      student: {
+        _id: student._id,
+        name: student.name,
+        candidateBio: student.candidateBio,
+        manifestoPoints: student.manifestoPoints,
+        photoUrl: student.photoUrl,
+      },
+    });
+
+  } catch (err) {
+    console.error("AddCandidateDetailsPost error:", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+// PUT: Update candidate details
+exports.updateCandidateDetails = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { candidateBio, manifestoPoints } = req.body;
 
     if (!studentId) {
       return res.status(400).json({ message: "studentId is required" });
@@ -422,7 +496,7 @@ exports.AddCandidateDetails = async (req, res) => {
     }
 
     // 🔒 Prevent editing after election starts
-    if (student.electionStatus === "Active") {
+    if (student.electionStartAt && new Date(student.electionStartAt) <= new Date()) {
       return res.status(403).json({
         message: "Candidate details cannot be edited once election has started",
       });
@@ -431,25 +505,20 @@ exports.AddCandidateDetails = async (req, res) => {
     /* ---------------- UPDATE FIELDS ---------------- */
 
     // Candidate Bio
-    if (typeof candidateBio === "string") {
-      student.candidateBio = candidateBio;
+    if (candidateBio !== undefined && typeof candidateBio === "string") {
+      student.candidateBio = candidateBio.trim();
     }
 
-    // Manifesto Points (normalize from FormData)
-    let manifestoRaw =
-  req.body.manifestoPoints ||
-  req.body["manifestoPoints[]"];
+    // Manifesto Points
+    if (manifestoPoints !== undefined) {
+      const points = Array.isArray(manifestoPoints)
+        ? manifestoPoints
+        : [manifestoPoints];
 
-if (manifestoRaw) {
-  const points = Array.isArray(manifestoRaw)
-    ? manifestoRaw
-    : [manifestoRaw];
-
-  student.manifestoPoints = points
-    .map(p => p.trim())
-    .filter(Boolean);
-}
-
+      student.manifestoPoints = points
+        .map(p => (typeof p === "string" ? p.trim() : String(p).trim()))
+        .filter(p => p.length > 0);
+    }
 
     // Photo (Cloudinary)
     if (req.file) {
@@ -477,4 +546,61 @@ if (manifestoRaw) {
     });
   }
 };
+
+exports.GetCandidateDetailsForTeacher = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    console.log("ethiiiiiiiiiiiiiiiiiiiiiiii");
+
+
+    if (!studentId) {
+      return res.status(400).json({
+        message: "studentId is required",
+      });
+    }
+
+    const student = await Student.findById(studentId).select(
+      "name position attendence candidateBio manifesto photoUrl iscandidate isApproved manifestoPoints className section "
+    );
+    console.log("bio", student?.candidateBio);
+
+
+
+    if (!student) {
+      return res.status(404).json({
+        message: "Candidate not found",
+      });
+    }
+
+    if (!student.iscandidate || !student.isApproved) {
+      return res.status(403).json({
+        message: "Candidate is not approved",
+      });
+    }
+
+    return res.status(200).json({
+      _id: student._id,
+      name: student.name,
+      position: student.position,
+      attendence: student.attendence ?? 0,
+      candidateBio: student.candidateBio || "",
+      manifesto: Array.isArray(student.manifestoPoints) ? student.manifestoPoints : [],
+      photoUrl: student.photoUrl || null,
+    });
+
+
+  }
+
+
+
+  catch (error) {
+    console.error("GetCandidateDetailsForTeacher error:", error);
+
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+};
+
 

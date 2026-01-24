@@ -62,6 +62,20 @@ exports.login = async (req, res) => {
       });
     }
 
+    //Generate JWT\
+    const token = createToken(teacher);
+         return res.status(200).json({
+      success: true,
+      message: "Teacher logged in successfully",
+      token,
+      teacher: {
+        facultyId: teacher.facultyId,
+        email: teacher.email,
+        role: teacher.role,
+      },
+    });
+
+
     // // 🔐 GENERATE OTP
     // const otp = generateOtp(6);
     // teacher.otp = otp;
@@ -70,16 +84,6 @@ exports.login = async (req, res) => {
 
     // // 📧 SEND OTP EMAIL
     // await sendOtpEmail(teacher.email, otp);
-
-    return res.status(200).json({
-      success: true,
-      message: "Teacher logged in successfully",
-      teacher: {
-        facultyId: teacher.facultyId,
-        email: teacher.email,
-        role: teacher.role,
-      },
-    });
 
   } catch (err) {
     console.error("teacher.login error:", err);
