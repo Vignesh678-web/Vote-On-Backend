@@ -1,4 +1,4 @@
-const Student =require('../../models/student/student.js')
+const Student = require('../../models/student/student.js')
 
 //candidate approval by admin
 
@@ -36,16 +36,16 @@ exports.approveCandidate = async (req, res) => {
 
   } catch (err) {
     console.error("approveCandidate error:", err);
-    return res.status(500).json({ 
-      message: "Server error", 
-      error: err.message 
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message
     });
   }
 };
 
 exports.getCandidates = async (req, res) => {
   console.log("Fetching candidates...");
-  
+
   try {
     const candidates = await Student.find({ iscandidate: true })
       .select(
@@ -115,11 +115,14 @@ exports.rejectCandidate = async (req, res) => {
 
 
 
-
 exports.getPendingCandidates = async (req, res) => {
   try {
-    const pending = await student.find({ isApproved: false })
-      .populate("student")
+    const pending = await Student.find({
+      iscandidate: true,
+      isApproved: false
+    })
+      .select("_id name email admissionNumber attendence position photoUrl className section createdAt")
+      .sort({ createdAt: -1 })
       .lean();
 
     res.json({ candidates: pending });
@@ -128,48 +131,46 @@ exports.getPendingCandidates = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-exports.createCandidateByAdmin = async(req,res) => {
 
-  try{
-    const {student,position,manifesto,photoUrl} = req.body;
+exports.createCandidateByAdmin = async (req, res) => {
+  try {
+    const { studentId, position, manifesto, photoUrl } = req.body;
 
-    if(!student||!position) {
+    if (!studentId || !position) {
       return res.status(400).json({
-        message:"student and position are required",
+        message: "studentId and position are required",
       });
     }
 
-    const existing = await student.findOne({student});
-    if(existing) {
-      return res.status(409).json({
-        message:"candidate already exists for this student",
+    const studentRecord = await Student.findById(studentId);
+    if (!studentRecord) {
+      return res.status(404).json({
+        message: "Student not found",
       });
     }
-    const candidate = new student ({
-      student,
-      position,
-      manifesto,
-      photoUrl,
-      iscandidate:true,
-      isApproved:true,
-      createdByAdmin:true,
-      createdBy:null,
-    });
-    await candidate.save();
+
+    if (studentRecord.iscandidate) {
+      return res.status(409).json({
+        message: "This student is already a candidate",
+      });
+    }
+
+    // Update student to be a candidate (auto-approved by admin)
+    studentRecord.iscandidate = true;
+    studentRecord.isApproved = true;
+    studentRecord.position = position;
+    studentRecord.manifesto = manifesto || null;
+    studentRecord.photoUrl = photoUrl || studentRecord.photoUrl;
+    studentRecord.electionStatus = "Active";
+
+    await studentRecord.save();
 
     return res.status(201).json({
-      message:"Candidate Created By admin",
-      candidate,
+      message: "Candidate created by admin",
+      candidate: studentRecord,
     });
-  } catch (err)
-  {
-    console.error("createCandidateByAdmin error",err);
-    return res 
-    .status(500)
-    .json({message:"Server error",error: err.message});
+  } catch (err) {
+    console.error("createCandidateByAdmin error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-
-
-
-

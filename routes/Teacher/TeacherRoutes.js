@@ -6,24 +6,30 @@ const auth = require("../../middleware/auth");
 const upload = require('../../middleware/upload');
 
 
-router.post('/students', teacherController.registerStudent);
-router.get('/students', teacherController.listStudents);
-router.post('/attendance', teacherController.Addattendance);
-router.post('/update-attendance', teacherController.updateAttendance);
-router.get('/students/:id', teacherController.getStudent);
-router.put('/students/:id', teacherController.updateStudent);
-router.delete('/students/:id',teacherController.deleteStudent);
-router.post( '/nominate', upload.single("photo"),teacherController.nominateCandidate);
-router.get('/approved-candidates', teacherController.listApprovedCandidates);
-router.post( '/candidates/adddetails/:studentId', upload.single("photo"), teacherController.AddCandidateDetailsPost);
-router.put( "/candidates/adddetails/:studentId", upload.single("photo"), teacherController.updateCandidateDetails);
-router.get('/candidates/:studentId', teacherController.GetCandidateDetailsForTeacher);
+router.post('/students', auth, teacherController.registerStudent);
+router.get('/students', auth, teacherController.listStudents);
+router.post('/attendance', auth, teacherController.Addattendance);
+router.post('/update-attendance', auth, teacherController.updateAttendance);
+router.get('/students/:id', auth, teacherController.getStudent);
+router.put('/students/:id', auth, teacherController.updateStudent);
+router.delete('/students/:id', auth, teacherController.deleteStudent);
+router.post('/nominate', auth, upload.single("photo"), teacherController.nominateCandidate);
+router.get('/approved-candidates', auth, teacherController.listApprovedCandidates);
+router.post('/candidates/adddetails/:studentId', auth, upload.single("photo"), teacherController.AddCandidateDetailsPost);
+router.put("/candidates/adddetails/:studentId", auth, upload.single("photo"), teacherController.updateCandidateDetails);
+router.get('/candidates/:studentId', auth, teacherController.GetCandidateDetailsForTeacher);
 
 
 router.post(
   '/class-election/create',
   auth,
   teacherController.createClassElection
+);
+
+router.put(
+  '/class-election/:electionId',
+  auth,
+  teacherController.updateClassElection
 );
 
 router.post(
@@ -33,13 +39,13 @@ router.post(
 );
 
 router.patch(
-  '/class-election/:id/start',
+  '/class-election/:electionId/start',
   auth,
   teacherController.startClassElection
 );
 
 router.patch(
-  '/class-election/:id/end',
+  '/class-election/:electionId/end',
   auth,
   teacherController.endClassElection
 );
@@ -50,7 +56,11 @@ router.get(
   teacherController.listClassElections
 );
 
-
+router.delete(
+  '/class-election/:electionId',
+  auth,
+  teacherController.deleteClassElection
+);
 
 module.exports = router;
 

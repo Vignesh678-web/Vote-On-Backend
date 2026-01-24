@@ -4,29 +4,35 @@ dotenv.config();
 
 
 const sendEmail = async (email, otp) => {
-  console.log(email, otp, "lllllllllllllll");
+  console.log(`[MAILER] Attempting to send OTP to: ${email}`);
 
   try {
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
+        user: process.env.EMAIL_USER?.trim(),
+        pass: process.env.EMAIL_PASSWORD?.trim()
       },
-      tls: { rejectUnauthorized: false }  // dev only
+      tls: { rejectUnauthorized: false }
     });
 
+    // Verify SMTP connection
+    await transporter.verify();
+    console.log("[MAILER] SMTP connection verified");
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    const mailOptions = {
+      from: `"ONLINE VOTE SYTEM" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "OTP Verification",
-      text: "Your OTP for verification is: " + otp
-    });
+      subject: "OTP Verification - Online Vote",
+      text: `Your OTP for verification is: ${otp}. This OTP will expire in 5 minutes.`
+    };
 
-    console.log("Email sent successfully");
+    await transporter.sendMail(mailOptions);
+    console.log(`[MAILER] OTP sent successfully to ${email}`);
+    return true;
   } catch (error) {
-    console.log("Email error:", error);
+    console.error(`[MAILER] Error sending email to ${email}:`, error);
+    throw error; // Rethrow to let the controller handle it
   }
 };
 

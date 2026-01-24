@@ -1,86 +1,155 @@
+const { validationResult } = require("express-validator");
+const Student = require('../../models/student/student.js');
 
-const {validationResult} = require("express-validator");
-const student =require('../../models/student/student.js');
-
-
-exports.addstudent = async(req,res) => {
-
-  try{
+// Add student as candidate
+exports.addCandidate = async (req, res) => {
+  try {
     const errors = validationResult(req);
-    if(!errors.isEmpty()) {
-      return res.status(400).json({errors:errors.array()});
-    }
-    const {studentId,position,manifesto,photoUrl} = req.body;
-
-    const student = await student.findById(studentId);
-    if(!student) {
-      return res.status(404).json({message:"Student not found" });
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    if(!student.eligible) {
-      return res.status(400).json({message:"This student is not eligible to be a candidate"});
+    const { studentId, position, manifesto, photoUrl } = req.body;
+
+    const studentRecord = await Student.findById(studentId);
+    if (!studentRecord) {
+      return res.status(404).json({ message: "Student not found" });
     }
 
-    const candidate = new Candidate({
-      student:studentId,
-      position,
-      manifesto,
-      photoUrl,
-      createdBy:req.user?.id,
-    });
-    await candidate.save();
+    // Check minimum attendance (75%)
+    if (studentRecord.attendence < 75) {
+      return res.status(400).json({
+        message: "This student is not eligible to be a candidate. Minimum 75% attendance required.",
+        currentAttendance: studentRecord.attendence
+      });
+    }
+
+    // Mark student as candidate
+    studentRecord.iscandidate = true;
+    studentRecord.isApproved = false;
+    studentRecord.position = position || null;
+    studentRecord.manifesto = manifesto || null;
+    studentRecord.photoUrl = photoUrl || studentRecord.photoUrl;
+    studentRecord.electionStatus = "Draft";
+
+    await studentRecord.save();
 
     return res.status(201).json({
-      message:"Candidate added Successfully",
-      candidate,
+      message: "Candidate added successfully. Awaiting admin approval.",
+      candidate: studentRecord,
     });
-   } catch (err) {
-    console.error("addCandidate error:",err);
-    res.status(500).json({message:"Server Error", error:err.message});
-   }
-  };
+  } catch (err) {
+    console.error("addCandidate error:", err);
+    res.status(500).json({ message: "Server Error", error: err.message });
+  }
+};
 
-  exports.getstudent = async(req,res) => {
-    try{
-      const student = await student.find().populate("student","-createdBy").lean();
+// Get all candidates
+exports.getAllCandidates = async (req, res) => {
+  try {
+    const candidates = await Student.find({ iscandidate: true })
+      .select("_id name email admissionNumber attendence iscandidate isApproved position photoUrl className section")
+      .sort({ createdAt: -1 })
+      .lean();
 
-      res.json({student});
-    } catch(err) {
-      console.error("getCandidates error:",err);
-      res.status(500).json({message:"Server Error", error:err.message});
+    res.json({ candidates });
+  } catch (err) {
+    console.error("getAllCandidates error:", err);
+    res.status(500).json({ message: "Server Error", error: err.message });
+  }
+};
+
+// Get single candidate by ID
+exports.getCandidateById = async (req, res) => {
+  try {
+    const candidateRecord = await Student.findById(req.params.id);
+
+    if (!candidateRecord) {
+      return res.status(404).json({ message: "Candidate not found" });
     }
-  };
 
-  exports.getstudent = async(req,res) => {
-    try {
-      const student = await student.findById(req.params.id).populate("student");
-      if(!student) return res.status(404).json({message:"student not found"});
-
-      res.json({student});
-    } catch(err) {
-      console.error("getStudent error",err);
-      res.status(500).json({message:"server error", error:err.message});
+    if (!candidateRecord.iscandidate) {
+      return res.status(400).json({ message: "This student is not a candidate" });
     }
-  };
 
-  exports.removestudent = async (req, res) => {
+    res.json({ candidate: candidateRecord });
+  } catch (err) {
+    console.error("getCandidateById error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Remove candidate status from student
+exports.removeCandidate = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const student = await student.findById(id);
-    if (!student) {
-      return res.status(404).json({ message: "student not found" });
+    const studentRecord = await Student.findById(id);
+    if (!studentRecord) {
+      return res.status(404).json({ message: "Student not found" });
     }
 
-    await student.findByIdAndDelete(id);
+    if (!studentRecord.iscandidate) {
+      return res.status(400).json({ message: "This student is not a candidate" });
+    }
 
-    return res.json({ message: "student removed successfully" });
+    // Reset candidate fields
+    studentRecord.iscandidate = false;
+    studentRecord.isApproved = false;
+    studentRecord.position = null;
+    studentRecord.manifesto = null;
+    studentRecord.electionStatus = null;
+    studentRecord.votesCount = 0;
+
+    await studentRecord.save();
+
+    return res.json({ message: "Candidate removed successfully", student: studentRecord });
   } catch (err) {
-    console.error("removeStudent error:", err);
+    console.error("removeCandidate error:", err);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
-exports.getApproved = async (req, res) => { 
-  const students = await student.find({ isApproved: true }) .populate("student").lean();
-   res.json({ students }); 
+
+// Get all approved candidates (filtered for students)
+exports.getApprovedCandidates = async (req, res) => {
+  try {
+    const { role, className, section } = req.user;
+    const userRole = (role || '').toLowerCase();
+
+    console.log(`[getApprovedCandidates] Request by Role: ${userRole}`);
+
+    let filter = {
+      iscandidate: true,
+      isApproved: true
+    };
+
+    // If student, use pre-enriched department info from auth middleware
+    if (userRole === 'student') {
+      console.log(`[getApprovedCandidates] Enforcing Filter for Class: ${className}, Section: ${section}`);
+
+      if (className) {
+        const escapedClass = className.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.className = { $regex: new RegExp(`^${escapedClass}$`, 'i') };
+      } else {
+        filter.className = "UNASSIGNED_CLASS"; // Show nothing if no class assigned
+      }
+
+      if (section) {
+        const escapedSection = section.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        filter.section = { $regex: new RegExp(`^${escapedSection}$`, 'i') };
+      }
+    }
+
+    console.log(`[getApprovedCandidates] Filter:`, JSON.stringify(filter));
+
+    const candidates = await Student.find(filter)
+      .select("_id name email admissionNumber attendence position photoUrl candidateBio manifestoPoints className section votesCount")
+      .lean();
+
+    console.log(`[getApprovedCandidates] SUCCESS: Returned ${candidates.length} matching candidates`);
+    res.json({ candidates });
+  } catch (err) {
+    console.error("getApprovedCandidates error:", err);
+    res.status(500).json({ message: "Server Error", error: err.message });
+  }
 };

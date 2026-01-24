@@ -26,6 +26,10 @@ const candidateSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    role: {
+      type: String,
+      default: 'student',
+    },
     attendence: {
       type: Number,
       default: 0,
@@ -36,7 +40,7 @@ const candidateSchema = new mongoose.Schema(
       trim: true,
     },
 
-      manifestoPoints: [
+    manifestoPoints: [
       {
         type: String,
         trim: true,

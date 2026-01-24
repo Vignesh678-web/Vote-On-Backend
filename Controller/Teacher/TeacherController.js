@@ -9,11 +9,14 @@ const { v4: uuidv4 } = require("uuid");
 // make studetnt candidate
 exports.registerStudent = async (req, res) => {
   try {
-    const { firstName, lastName, admissionNumber, attendancePercentage, className, section } = req.body;
+    const { name, firstName, lastName, email, admissionNumber, attendancePercentage, className, section } = req.body;
+
+    // Support both combined Name or separate names
+    const finalName = name || `${firstName || ''} ${lastName || ''}`.trim();
 
     // Basic validation
-    if (!firstName || !lastName || !admissionNumber || attendancePercentage === undefined) {
-      return res.status(400).json({ message: 'firstName, lastName, admissionNumber and attendancePercentage are required.' });
+    if (!finalName || !admissionNumber || attendancePercentage === undefined) {
+      return res.status(400).json({ message: 'name, admissionNumber and attendancePercentage are required.' });
     }
 
     // ensure numeric attendance
@@ -28,17 +31,19 @@ exports.registerStudent = async (req, res) => {
       return res.status(409).json({ message: 'A student with this admission number already exists.' });
     }
 
-    // Optionally attach teacher id if you have authentication
-    const createdBy = req.user?.id || undefined; // requires auth middleware that sets req.user
+    const createdBy = req.user?.id || undefined;
 
+    // IMPORTANT: Provide defaults for required fields if missing from teacher UI
     const student = new Student({
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
+      name: finalName,
+      email: email || `${admissionNumber}@college.edu`,
+      password: "studentPassword123", // Default password for teacher-added students
       admissionNumber: admissionNumber.trim(),
-      attendancePercentage: attendance,
+      attendence: attendance, // Corrected spelling to match model
       className,
       section,
-      createdBy
+      createdBy,
+      isverified: true // Teacher added students can be pre-verified
     });
 
     await student.save();
@@ -115,66 +120,197 @@ exports.deleteStudent = async (req, res) => {
   }
 };
 
-// class level election 
+// class level election - Create a new class election
 exports.createClassElection = async (req, res) => {
   try {
-    const { className, section, position, description } = req.body;
+    const Election = require('../../models/Election/Election.js');
 
-    if (!className || !section || !position) {
-      return res.status(400).json({ message: "className, section, position are required" });
-    }
-
-    const election = {
-      electionId: new mongoose.Types.ObjectId(),
+    const {
+      title,
       className,
       section,
       position,
       description,
-      createdBy: req.user.id,
-      status: "Not Started",
-      createdAt: new Date()
-    };
+      startDate,
+      endDate,
+      minAttendanceRequired
+    } = req.body;
 
-    return res.status(201).json({ message: "Class election created", election });
+    // Validation
+    if (!className || !section || !position) {
+      return res.status(400).json({
+        message: "className, section, and position are required"
+      });
+    }
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        message: "startDate and endDate are required"
+      });
+    }
+
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (start >= end) {
+      return res.status(400).json({
+        message: "endDate must be after startDate"
+      });
+    }
+
+    // Check if there's already an active election for this class/section/position
+    const existingElection = await Election.findOne({
+      type: 'class',
+      className,
+      section,
+      position,
+      status: { $in: ['Draft', 'Scheduled', 'Active'] }
+    });
+
+    if (existingElection) {
+      return res.status(409).json({
+        message: `An election for ${position} in ${className}-${section} already exists`,
+        existingElection: {
+          _id: existingElection._id,
+          title: existingElection.title,
+          status: existingElection.status
+        }
+      });
+    }
+
+    // Create the election
+    const election = new Election({
+      title: title || `${position} Election - ${className} ${section}`,
+      description: description || `Class election for ${position} position`,
+      type: 'class',
+      position,
+      className,
+      section,
+      startDate: start,
+      endDate: end,
+      minAttendanceRequired: minAttendanceRequired || 75,
+      status: 'Draft',
+      createdBy: req.user.id,
+      createdByRole: 'Teacher'
+    });
+
+    await election.save();
+
+    return res.status(201).json({
+      message: "Class election created successfully",
+      election
+    });
+
   } catch (err) {
     console.error("createClassElection error:", err);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
+// Update an existing class election
+exports.updateClassElection = async (req, res) => {
+  try {
+    const { electionId } = req.params;
+    const updates = req.body;
+    const Election = require('../../models/Election/Election.js');
+
+    const election = await Election.findById(electionId);
+    if (!election) {
+      return res.status(404).json({ message: "Election not found" });
+    }
+
+    // Only allow editing if the election hasn't started yet
+    if (election.status !== 'Draft' && election.status !== 'Scheduled') {
+      return res.status(403).json({
+        message: `Cannot edit an election that is already ${election.status.toLowerCase()}`
+      });
+    }
+
+    // List of allowed fields to update
+    const allowedUpdates = ['title', 'className', 'section', 'position', 'description', 'startDate', 'endDate', 'minAttendanceRequired'];
+
+    Object.keys(updates).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        if (key === 'startDate' || key === 'endDate') {
+          election[key] = new Date(updates[key]);
+        } else {
+          election[key] = updates[key];
+        }
+      }
+    });
+
+    // Re-validate dates if changed
+    if (election.startDate >= election.endDate) {
+      return res.status(400).json({ message: "EndDate must be after StartDate" });
+    }
+
+    await election.save();
+
+    res.json({
+      message: "Election updated successfully",
+      election
+    });
+
+  } catch (err) {
+    console.error("updateClassElection error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
 //Add candidate to class election
 exports.addCandidateToClassElection = async (req, res) => {
   try {
-    const { studentId, position, classElectionId, className, section } = req.body;
+    const { studentId, position, electionId } = req.body;
+    const Election = require('../../models/Election/Election.js');
 
-    const existing = await Candidate.findOne({ student: studentId });
-    if (existing) {
-      return res.status(400).json({ message: "Candidate already exists" });
+    if (!studentId || !electionId) {
+      return res.status(400).json({ message: "studentId and electionId are required" });
     }
 
-    const newCandidate = new Candidate({
+    const election = await Election.findById(electionId);
+    if (!election) {
+      return res.status(404).json({ message: "Election not found" });
+    }
+
+    const studentRecord = await Student.findById(studentId);
+    if (!studentRecord) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Check if student is already a candidate in this election
+    const alreadyCandidate = election.candidates.some(
+      c => c.student.toString() === studentId
+    );
+    if (alreadyCandidate) {
+      return res.status(400).json({ message: "Student is already a candidate in this election" });
+    }
+
+    // Check minimum attendance
+    if (studentRecord.attendence < election.minAttendanceRequired) {
+      return res.status(400).json({
+        message: `Student needs minimum ${election.minAttendanceRequired}% attendance. Current: ${studentRecord.attendence}%`
+      });
+    }
+
+    // Add candidate to election
+    election.candidates.push({
       student: studentId,
-      position,
-      manifesto: "",
-      iscandidate: true,
-      isApproved: true,
-      createdByTeacher: true,
-      createdByAdmin: false,
-      createdBy: req.user.id,
-
-      // class election values
-      classElectionId,
-      isClassElectionCandidate: true,
-      className,
-      section,
-      electionStatus: "Draft",
+      votesCount: 0
     });
+    await election.save();
 
-    await newCandidate.save();
+    // Mark student as candidate
+    studentRecord.iscandidate = true;
+    studentRecord.isApproved = false;
+    studentRecord.position = position || election.position;
+    await studentRecord.save();
 
     res.json({
-      message: "Candidate added to class election",
-      newCandidate
+      message: "Candidate added to class election. Awaiting admin approval.",
+      election,
+      candidate: studentRecord
     });
 
   } catch (err) {
@@ -182,55 +318,70 @@ exports.addCandidateToClassElection = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 //Start class election
 exports.startClassElection = async (req, res) => {
   try {
-    const { classElectionId } = req.params;
+    const { electionId } = req.params;
+    const Election = require('../../models/Election/Election.js');
 
-    await Candidate.updateMany(
-      { classElectionId },
-      {
-        $set: {
-          electionStatus: "Active",
-          electionStartAt: new Date()
-        }
-      }
-    );
+    const election = await Election.findById(electionId);
+    if (!election) {
+      return res.status(404).json({ message: "Election not found" });
+    }
 
-    res.json({ message: "Class election started", classElectionId });
+    if (election.status === 'Active') {
+      return res.status(400).json({ message: "Election is already active" });
+    }
+
+    if (election.candidates.length < 2) {
+      return res.status(400).json({ message: "Election needs at least 2 candidates to start" });
+    }
+
+    election.status = 'Active';
+    election.startDate = new Date();
+    await election.save();
+
+    res.json({ message: "Class election started", election });
 
   } catch (err) {
     console.error("startClassElection error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 //End class election
 exports.endClassElection = async (req, res) => {
   try {
-    const { classElectionId } = req.params;
+    const { electionId } = req.params;
+    const Election = require('../../models/Election/Election.js');
 
-    const candidates = await Candidate.find({ classElectionId });
-
-    let winner = null;
-    if (candidates.length > 0) {
-      winner = candidates.reduce((a, b) =>
-        a.votesCount > b.votesCount ? a : b
-      );
+    const election = await Election.findById(electionId).populate('candidates.student', 'name');
+    if (!election) {
+      return res.status(404).json({ message: "Election not found" });
     }
 
-    await candidates.updateMany(
-      { classElectionId },
-      {
-        $set: {
-          electionStatus: "Completed",
-          electionEndAt: new Date()
-        }
-      }
-    );
+    if (election.status !== 'Active') {
+      return res.status(400).json({ message: "Election is not active" });
+    }
+
+    // Find winner (candidate with most votes)
+    let winner = null;
+    if (election.candidates.length > 0) {
+      const winnerCandidate = election.candidates.reduce((a, b) =>
+        a.votesCount > b.votesCount ? a : b
+      );
+      winner = winnerCandidate.student;
+      election.winner = winner._id || winner;
+    }
+
+    election.status = 'Completed';
+    election.endDate = new Date();
+    await election.save();
 
     res.json({
       message: "Class election ended",
-      classElectionId,
+      election,
       winner
     });
 
@@ -239,26 +390,43 @@ exports.endClassElection = async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
+
 //List class elections
 exports.listClassElections = async (req, res) => {
   try {
-    const elections = await Candidate.aggregate([
-      { $match: { isClassElectionCandidate: true } },
-      {
-        $group: {
-          _id: "$classElectionId",
-          className: { $first: "$className" },
-          section: { $first: "$section" },
-          electionStatus: { $first: "$electionStatus" },
-          candidatesCount: { $sum: 1 }
-        }
-      }
-    ]);
+    const Election = require('../../models/Election/Election.js');
+
+    const elections = await Election.find({ type: 'class' })
+      .populate('candidates.student', 'name admissionNumber photoUrl')
+      .populate('winner', 'name')
+      .select('title position className section status startDate endDate candidates totalVotes winner')
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.json({ elections });
 
   } catch (err) {
     console.error("listClassElections error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Delete class election
+exports.deleteClassElection = async (req, res) => {
+  try {
+    const { electionId } = req.params;
+    const Election = require('../../models/Election/Election.js');
+
+    const election = await Election.findByIdAndDelete(electionId);
+
+    if (!election) {
+      return res.status(404).json({ message: "Election not found" });
+    }
+
+    res.json({ success: true, message: "Election deleted successfully" });
+
+  } catch (err) {
+    console.error("deleteClassElection error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
@@ -343,6 +511,14 @@ exports.nominateCandidate = async (req, res) => {
     const student = await Student.findById(studentId);
     if (!student) {
       return res.status(404).json({ message: "Student not found" });
+    }
+
+    // Check attendance (e.g., minimum 75%)
+    if (student.attendence < 75) {
+      return res.status(400).json({
+        message: "Student attendance is too low for nomination. Minimum 75% required.",
+        currentAttendance: student.attendence
+      });
     }
 
     // file uploaded? -> req.file.path contains cloudinary URL

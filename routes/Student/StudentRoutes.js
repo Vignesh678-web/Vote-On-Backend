@@ -5,13 +5,15 @@ const {
   verifyOtp,
   loginwithPassword,
   studentregister,
-  voteCandidate
+  voteCandidate,
+  getProfile
 } = require("../../Controller/Student/studentController");
 const auth = require("../../middleware/auth");
 
 
-router.post('/studentregister',studentregister)
-router.post("/vote/:candidateId",auth,voteCandidate);
+router.post('/studentregister', studentregister)
+router.post("/vote/:candidateId", auth, voteCandidate);
+router.get("/profile", auth, getProfile);
 
 // Route to send OTP using Admission Number
 
