@@ -293,10 +293,15 @@ exports.endElection = async (req, res) => {
       election.winner = winnerCandidate.student._id || winnerCandidate.student;
 
       // Mark winner in student record
-      await Student.findByIdAndUpdate(
-        winnerCandidate.student._id || winnerCandidate.student,
-        { hasWon: true }
-      );
+      const winnerId = winnerCandidate.student._id || winnerCandidate.student;
+
+      // Mark as class winner and, for CLASS elections, promote to college-candidate
+      const update = { hasWon: true };
+      if (election.type === 'class') {
+        update.isCollegeCandidate = true;
+      }
+
+      await Student.findByIdAndUpdate(winnerId, update, { new: true });
     }
 
     election.status = 'Completed';

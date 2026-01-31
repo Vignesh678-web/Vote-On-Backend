@@ -132,6 +132,44 @@ exports.getPendingCandidates = async (req, res) => {
   }
 };
 
+// --- College-level candidates (promoted after class wins) ---
+exports.promoteClassWinnersToCollege = async (req, res) => {
+  try {
+    // Find class election winners who are not yet promoted
+    const winners = await Student.find({
+      hasWon: true,
+      isCollegeCandidate: false,
+    });
+
+    if (winners.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No class election winners to promote",
+        promotedCount: 0,
+      });
+    }
+
+    // Promote them
+    for (const student of winners) {
+      student.isCollegeCandidate = true;
+      await student.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Class election winners promoted to college candidates",
+      promotedCount: winners.length,
+    });
+  } catch (error) {
+    console.error("Promotion error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to promote class election winners",
+    });
+  }
+};
+
+
 exports.createCandidateByAdmin = async (req, res) => {
   try {
     const { studentId, position, manifesto, photoUrl } = req.body;
@@ -172,5 +210,26 @@ exports.createCandidateByAdmin = async (req, res) => {
   } catch (err) {
     console.error("createCandidateByAdmin error:", err);
     return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+exports.getCollegeCandidates = async (req, res) => {
+  try {
+    const candidates = await Student.find({ isCollegeCandidate: true })
+      .select("name email admissionNumber className section candidateBio manifestoPoints photoUrl votesCount")
+      .sort({ votesCount: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: candidates.length,
+      candidates,
+    });
+  } catch (error) {
+    console.error("getCollegeCandidates error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch college candidates",
+      error: error.message,
+    });
   }
 };

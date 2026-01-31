@@ -10,6 +10,13 @@ router.get(
   adminCandidatectrl.getCandidates
 );
 
+// GET /api/admin/candidates/college
+router.get(
+  "/college",
+  auth,
+  requireAdmin,
+  adminCandidatectrl.getCollegeCandidates
+);
 
 // POST /api/admin/candidates/create
 router.post(
@@ -28,12 +35,19 @@ router.get(
 );
 
 
-router.patch("/approve/:studentId",adminCandidatectrl.approveCandidate);
+router.patch("/approve/:studentId", adminCandidatectrl.approveCandidate);
 
 // PATCH /api/admin/candidates/:id/reject
 router.patch(
   "/reject/:studentId", adminCandidatectrl.rejectCandidate);
 
-  
+
+// POST /api/admin/candidates/promote-class-winners
+router.put(
+  "/promote-class-winners",
+  adminCandidatectrl.promoteClassWinnersToCollege
+);
+
+
 
 module.exports = router;

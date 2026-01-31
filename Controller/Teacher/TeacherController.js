@@ -356,7 +356,9 @@ exports.endClassElection = async (req, res) => {
     const { electionId } = req.params;
     const Election = require('../../models/Election/Election.js');
 
-    const election = await Election.findById(electionId).populate('candidates.student', 'name');
+    const election = await Election.findById(electionId)
+      .populate('candidates.student');
+
     if (!election) {
       return res.status(404).json({ message: "Election not found" });
     }
@@ -365,14 +367,23 @@ exports.endClassElection = async (req, res) => {
       return res.status(400).json({ message: "Election is not active" });
     }
 
-    // Find winner (candidate with most votes)
-    let winner = null;
+    let winnerStudent = null;
+
     if (election.candidates.length > 0) {
       const winnerCandidate = election.candidates.reduce((a, b) =>
         a.votesCount > b.votesCount ? a : b
       );
-      winner = winnerCandidate.student;
-      election.winner = winner._id || winner;
+
+      winnerStudent = winnerCandidate.student;
+
+      // ✅ SAVE RESULT INTO STUDENT MODEL
+      await Student.findByIdAndUpdate(
+        winnerStudent._id,
+        { hasWon: true },
+        { new: true }
+      );
+
+      election.winner = winnerStudent._id;
     }
 
     election.status = 'Completed';
@@ -381,8 +392,10 @@ exports.endClassElection = async (req, res) => {
 
     res.json({
       message: "Class election ended",
-      election,
-      winner
+      winner: {
+        id: winnerStudent?._id,
+        name: winnerStudent?.name,
+      },
     });
 
   } catch (err) {

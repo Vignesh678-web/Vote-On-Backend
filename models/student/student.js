@@ -1,38 +1,70 @@
 const mongoose = require("mongoose");
 
-const candidateSchema = new mongoose.Schema(
+const studentSchema = new mongoose.Schema(
   {
     name: {
       type: String,
       required: true,
       trim: true,
     },
+
     email: {
       type: String,
       required: true,
+      unique: true,
       trim: true,
     },
+
     admissionNumber: {
       type: String,
       required: true,
       unique: true,
       trim: true,
     },
-    position: {
-      type: String,
-      trim: true,
-    },
+
     password: {
       type: String,
       required: true,
     },
+
     role: {
       type: String,
-      default: 'student',
+      enum: ["student", "admin"],
+      default: "student",
     },
-    attendence: {
+
+    className: {
+      type: String,
+      default: null,
+    },
+
+    section: {
+      type: String,
+      default: null,
+    },
+
+    attendance: {
       type: Number,
       default: 0,
+    },
+
+    /* ===== CLASS ELECTION ===== */
+
+    isCandidate: {
+      type: Boolean,
+      default: false, // contesting current election
+    },
+
+    hasWon: {
+      type: Boolean,
+      default: false, // won class election
+    },
+
+    /* ===== COLLEGE ELECTION ===== */
+
+    isCollegeCandidate: {
+      type: Boolean,
+      default: false, // becomes true ONLY after class win
     },
 
     candidateBio: {
@@ -51,74 +83,39 @@ const candidateSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    hasWon: {
-      type: Boolean,
-      default: false,
-    },
-
-    iscandidate: {
-      type: Boolean,
-      default: false,
-    },
-
-    isApproved: {
-      type: Boolean,
-      default: false,
-    },
-    isverified: {
-      type: Boolean,
-      default: false,
-    },
-
-    votedFor: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "student",        // reference to candidate
-      default: null
-    },
-
-    classElectionId: {
-      type: String,
-      default: null,
-    },
-
-    className: {
-      type: String,
-      default: null,
-    },
-
-    section: {
-      type: String,
-      default: null,
-    },
-
-    electionStatus: {
-      type: String,
-      enum: ["Draft", "Active", "Completed"],
-      default: "Draft",
-    },
-    otp: {
-      type: String,
-    },
-    otpExpiry: {
-      type: Date,
-    },
-
-    electionStartAt: {
-      type: Date,
-      default: null,
-    },
-
-    electionEndAt: {
-      type: Date,
-      default: null,
-    },
 
     votesCount: {
       type: Number,
       default: 0,
     },
+
+    votedFor: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "student", // candidate voted for
+      default: null,
+    },
+
+    /* ===== VERIFICATION ===== */
+
+    isApproved: {
+      type: Boolean,
+      default: false,
+    },
+
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+
+    otp: {
+      type: String,
+    },
+
+    otpExpiry: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("student", candidateSchema);
+module.exports = mongoose.model("student", studentSchema);

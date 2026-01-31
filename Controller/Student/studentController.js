@@ -77,7 +77,7 @@ exports.verifyOtp = async (req, res) => {
     // OTP is valid
     studentRecord.otp = null;
     studentRecord.otpExpiry = null;
-    studentRecord.isverified = true;
+    studentRecord.isVerified = true;
     await studentRecord.save();
     return res.status(200).json({ message: "OTP verified successfully" });
   } catch (error) {
@@ -125,6 +125,7 @@ exports.loginwithPassword = async (req, res) => {
 };
 
 //vote for candidate 
+
 
 exports.voteCandidate = async (req, res) => {
   try {
