@@ -29,6 +29,20 @@ exports.approveCandidate = async (req, res) => {
 
     await student.save();
 
+    //  AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'CANDIDATE_APPROVED',
+        'CANDIDATE',
+        `Candidate ${student.name} (${student.admissionNumber}) approved`,
+        req.user.adminId || req.user.facultyId || req.user.id,
+        req.user.role
+      );
+    } catch (logErr) {
+      console.error("Audit log failed:", logErr);
+    }
+
     return res.json({
       message: "Candidate approved successfully",
       student
@@ -49,7 +63,7 @@ exports.getCandidates = async (req, res) => {
   try {
     const candidates = await Student.find({ iscandidate: true })
       .select(
-        "_id name email admissionNumber attendence iscandidate isApproved isverified position manifesto candidateBio manifestoPoints photoUrl className section electionStatus votesCount createdAt"
+        "_id name email admissionNumber attendence iscandidate isApproved isverified isCollegeCandidate position manifesto candidateBio manifestoPoints photoUrl className section electionStatus votesCount createdAt"
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -93,6 +107,20 @@ exports.rejectCandidate = async (req, res) => {
     student.photoUrl = null; // optional: remove campaign photo
 
     await student.save();
+
+    // 📝 AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'CANDIDATE_REJECTED',
+        'CANDIDATE',
+        `Nomination for ${student.name} (${student.admissionNumber}) was rejected`,
+        req.user.adminId || req.user.facultyId || req.user.id,
+        req.user.role
+      );
+    } catch (logErr) {
+      console.error("Audit log failed:", logErr);
+    }
 
     return res.json({
       message: "Candidate rejected successfully",
@@ -196,6 +224,20 @@ exports.promoteClassWinnersToCollege = async (req, res) => {
     for (const student of winners) {
       student.isCollegeCandidate = true;
       await student.save();
+    }
+
+    // 📝 AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'CANDIDATES_PROMOTED',
+        'CANDIDATE',
+        `Promoted ${winners.length} class winners to college-level candidacy`,
+        req.user.adminId || req.user.facultyId || req.user.id,
+        req.user.role
+      );
+    } catch (logErr) {
+      console.error("Audit log failed:", logErr);
     }
 
     res.status(200).json({

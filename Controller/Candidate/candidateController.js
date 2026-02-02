@@ -59,6 +59,27 @@ exports.getAllCandidates = async (req, res) => {
   }
 };
 
+// Get approved candidates (for student view)
+exports.getApprovedCandidates = async (req, res) => {
+  try {
+    console.log('[getApprovedCandidates] Fetching approved candidates');
+    
+    const candidates = await Student.find({ 
+      iscandidate: true,
+      isApproved: true 
+    })
+      .select("_id name email admissionNumber attendence iscandidate isApproved position photoUrl className section candidateBio manifestoPoints")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log(`[getApprovedCandidates] Found ${candidates.length} approved candidates`);
+    res.json({ candidates });
+  } catch (err) {
+    console.error("getApprovedCandidates error:", err);
+    res.status(500).json({ message: "Server Error", error: err.message });
+  }
+};
+
 // Get single candidate by ID
 exports.getCandidateById = async (req, res) => {
   try {
@@ -123,21 +144,50 @@ exports.getApprovedCandidates = async (req, res) => {
       isApproved: true
     };
 
-    // If student, use pre-enriched department info from auth middleware
+    // If student, we want to show them candidates they are eligible for
+    // This includes college-level candidates AND candidates from their own class/section
     if (userRole === 'student') {
-      console.log(`[getApprovedCandidates] Enforcing Filter for Class: ${className}, Section: ${section}`);
+      const studentClass = (req.user.className || "").toLowerCase();
+      const studentSection = (req.user.section || "").toLowerCase();
 
-      if (className) {
-        const escapedClass = className.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        filter.className = { $regex: new RegExp(`^${escapedClass}$`, 'i') };
-      } else {
-        filter.className = "UNASSIGNED_CLASS"; // Show nothing if no class assigned
-      }
+      filter.$or = [
+        { isCollegeCandidate: true },
+        {
+          $and: [
+            { className: { $ne: null } },
+            { 
+              $or: [
+                { className: { $regex: new RegExp(studentClass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') } },
+                // Also handle the reverse: student's class name might be shorter/contained in candidate's class name
+                // But MongoDB regex is one-way. We'll stick to a broad regex for now or fetch more.
+              ]
+            }
+          ]
+        }
+      ];
+      
+      // Since MongoDB regex is one-way, we'll actually fetch ALL and filter in memory for perfect accuracy
+      const allApproved = await Student.find({ iscandidate: true, isApproved: true })
+        .select("_id name email admissionNumber attendence position photoUrl candidateBio manifestoPoints className section votesCount isCollegeCandidate")
+        .lean();
 
-      if (section) {
-        const escapedSection = section.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        filter.section = { $regex: new RegExp(`^${escapedSection}$`, 'i') };
-      }
+      const filtered = allApproved.filter(cand => {
+        if (cand.isCollegeCandidate) return true;
+        
+        const cClass = (cand.className || "").toLowerCase();
+        const cSection = (cand.section || "").toLowerCase();
+        const sClass = studentClass;
+        const sSection = studentSection;
+
+        const classMatch = cClass.includes(sClass) || sClass.includes(cClass);
+        const sectionMatch = (!cSection && !sSection) || 
+                             (cSection && sSection && (cSection.includes(sSection) || sSection.includes(cSection)));
+        
+        return classMatch && sectionMatch;
+      });
+
+      console.log(`[getApprovedCandidates] Returned ${filtered.length} candidates for student ${req.user.name}`);
+      return res.json({ candidates: filtered });
     }
 
     console.log(`[getApprovedCandidates] Filter:`, JSON.stringify(filter));

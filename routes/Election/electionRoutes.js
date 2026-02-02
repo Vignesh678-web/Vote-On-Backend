@@ -11,6 +11,16 @@ router.post('/create', auth, electionController.createElection);
 // Get all elections
 router.get('/', auth, electionController.getAllElections);
 
+// ============ STUDENT ROUTES (MUST BE BEFORE :id ROUTES) ============
+
+// Get elections student can vote in
+router.get('/student/available', auth, electionController.getElectionsForStudent);
+
+// Cast vote
+router.post('/vote', auth, electionController.castVote);
+
+// ============ PARAMETERIZED ROUTES (MUST BE AFTER SPECIFIC ROUTES) ============
+
 // Get single election
 router.get('/:id', auth, electionController.getElectionById);
 
@@ -31,15 +41,6 @@ router.put('/:id/cancel', auth, electionController.cancelElection);
 
 // Get election results
 router.get('/:id/results', auth, electionController.getElectionResults);
-
-
-// ============ STUDENT ROUTES ============
-
-// Get elections student can vote in
-router.get('/student/available', auth, electionController.getElectionsForStudent);
-
-// Cast vote
-router.post('/vote', auth, electionController.castVote);
 
 
 module.exports = router;

@@ -18,7 +18,7 @@ function createToken(admin) {
     {
       id: admin._id,
       adminId: admin.adminId,
-      role: admin.role, // 'admin'
+      role: admin.role || 'admin', // Ensure role is always passed
     },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
@@ -64,8 +64,18 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 🔐 GENERATE JWT
+    //  GENERATE JWT
     const token = createToken(admin);
+
+    //  AUDIT LOG
+    const { logAction } = require('../Audit/AuditController');
+    await logAction(
+      'ADMIN_LOGIN',
+      'AUTH',
+      `Administrator ${admin.adminId} logged into the dashboard`,
+      admin.adminId,
+      'admin'
+    );
 
     return res.status(200).json({
       success: true,
@@ -93,13 +103,20 @@ exports.getProfile = async (req, res) => {
     const role = req.user?.role;
 
     if (!id) return res.status(401).json({ message: 'Unauthorized' });
-    if (role !== 'admin')
-      return res.status(403).json({ message: 'Forbidden: admin only' });
+    if (role !== 'admin' && role !== 'teacher')
+      return res.status(403).json({ message: 'Forbidden: Administrative access required' });
 
-    const admin = await Admin.findById(id).select('-password').lean();
-    if (!admin) return res.status(404).json({ message: 'Admin not found' });
+    let profile;
+    if (role === 'admin') {
+      profile = await Admin.findById(id).select('-password').lean();
+    } else {
+      const Teacher = require('../../models/Teacher/Teacher');
+      profile = await Teacher.findById(id).select('-password').lean();
+    }
 
-    return res.json({ admin });
+    if (!profile) return res.status(404).json({ message: 'User not found' });
+
+    return res.json({ success: true, profile });
   } catch (err) {
     console.error('admin.getProfile error:', err);
     return res
@@ -182,6 +199,49 @@ exports.createAdmin = async (req, res) => {
 };
 
 // controllers/AdminAuthController.js (or otpController.js)
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const id = req.user?.id;
+    const role = req.user?.role;
+    const { name } = req.body;
+
+    if (!id) return res.status(401).json({ message: 'Unauthorized' });
+    if (!name) return res.status(400).json({ message: 'Name is required' });
+
+    let profile;
+    if (role === 'admin') {
+      profile = await Admin.findById(id);
+      if (profile) profile.Name = name;
+    } else {
+      const Teacher = require('../../models/Teacher/Teacher');
+      profile = await Teacher.findById(id);
+      if (profile) profile.Name = name;
+    }
+
+    if (!profile) return res.status(404).json({ message: 'User not found' });
+    await profile.save();
+
+    // 📝 AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'PROFILE_UPDATED',
+        'AUTH',
+        `User ${name} updated their administrative profile`,
+        req.user.adminId || req.user.facultyId || req.user.id,
+        req.user.role
+      );
+    } catch (logErr) {
+      console.error("Audit log failed:", logErr);
+    }
+
+    return res.json({ success: true, message: 'Profile updated successfully', profile });
+  } catch (err) {
+    console.error('admin.updateProfile error:', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
 
 exports.veriffffyOtp = async (req, res) => {
   try {

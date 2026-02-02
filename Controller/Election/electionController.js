@@ -153,9 +153,18 @@ exports.addCandidateToElection = async (req, res) => {
       });
     }
 
-    // For class elections, verify student belongs to the class
+    // For class elections, verify student belongs to the class (flexible matching)
     if (election.type === 'class') {
-      if (student.className !== election.className || student.section !== election.section) {
+      const sClass = (student.className || "").toLowerCase();
+      const eClass = (election.className || "").toLowerCase();
+      const sSection = (student.section || "").toLowerCase();
+      const eSection = (election.section || "").toLowerCase();
+
+      const classMatch = sClass.includes(eClass) || eClass.includes(sClass);
+      const sectionMatch = (!sSection && !eSection) || 
+                           (sSection && eSection && (sSection.includes(eSection) || eSection.includes(sSection)));
+
+      if (!classMatch || !sectionMatch) {
         return res.status(400).json({
           message: "Student does not belong to this class/section"
         });
@@ -171,12 +180,16 @@ exports.addCandidateToElection = async (req, res) => {
 
     // Update student record
     student.iscandidate = true;
-    student.isApproved = false;
+    // Auto-approve college candidates as they are admin-selected
+    student.isApproved = election.type === 'college' ? true : false;
     student.position = election.position;
+    student.electionStatus = election.type === 'college' ? "Active" : "Pending";
     await student.save();
 
     res.json({
-      message: "Candidate added to election. Awaiting approval.",
+      message: election.type === 'college' 
+        ? "Candidate added and approved for college election." 
+        : "Candidate added to election. Awaiting approval.",
       election
     });
 
@@ -308,6 +321,20 @@ exports.endElection = async (req, res) => {
     election.endDate = new Date();
     await election.save();
 
+    //  AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'ELECTION_ENDED',
+        'ELECTION',
+        `Election "${election.title}" ended. Status set to Completed.`,
+        req.user.adminId || req.user.facultyId || req.user.id,
+        req.user.role
+      );
+    } catch (logErr) {
+      console.error("Audit logging failed:", logErr);
+    }
+
     res.json({
       message: "Election ended successfully",
       election,
@@ -361,9 +388,21 @@ exports.castVote = async (req, res) => {
       return res.status(400).json({ message: "Please verify your account before voting" });
     }
 
-    // For class elections, check voter belongs to the class
+    // For class elections, check voter belongs to the class (flexible matching)
     if (election.type === 'class') {
-      if (voter.className !== election.className || voter.section !== election.section) {
+      const vClass = (voter.className || "").toLowerCase();
+      const eClass = (election.className || "").toLowerCase();
+      const vSection = (voter.section || "").toLowerCase();
+      const eSection = (election.section || "").toLowerCase();
+
+      // Check if election class is contained in student class or vice versa
+      const classMatch = vClass.includes(eClass) || eClass.includes(vClass);
+      
+      // Section match: both empty OR one contains the other
+      const sectionMatch = (!vSection && !eSection) || 
+                           (vSection && eSection && (vSection.includes(eSection) || eSection.includes(vSection)));
+
+      if (!classMatch || !sectionMatch) {
         return res.status(403).json({ message: "You cannot vote in this class election" });
       }
     }
@@ -385,6 +424,20 @@ exports.castVote = async (req, res) => {
     election.totalVotes += 1;
     await election.save();
 
+    // 📝 AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'VOTE_CAST',
+        'ELECTION',
+        `Vote cast in election: ${election.title}`,
+        req.user.id,
+        'student'
+      );
+    } catch (logErr) {
+      console.error("Audit logging failed:", logErr);
+    }
+
     res.json({ message: "Vote cast successfully" });
 
   } catch (err) {
@@ -404,32 +457,36 @@ exports.getElectionsForStudent = async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    console.log(`[getElectionsForStudent] Fetching for Student: ${student.name}, Class: ${student.className}, Section: ${student.section}`);
+    console.log(`[getElectionsForStudent] Request from user ID: ${studentId}, Role: ${req.user?.role}`);
+    console.log(`[getElectionsForStudent] Student Details - Name: ${student.name}, Class: ${student.className}, Section: ${student.section}`);
 
-    // Get active/scheduled/completed college elections + class elections for student's class (case-insensitive)
-    const elections = await Election.find({
-      status: { $in: ['Active', 'Scheduled', 'Completed'] },
-      $or: [
-        { type: 'college' },
-        {
-          type: 'class',
-          className: { $regex: new RegExp(`^${student.className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
-          section: { $regex: new RegExp(`^${student.section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
-        }
-      ]
+    // Fetch all potentially relevant elections
+    // We fetch Active, Scheduled, and Completed elections
+    const allElections = await Election.find({
+      status: { $in: ['Active', 'Scheduled', 'Completed'] }
     })
       .populate('candidates.student', 'name admissionNumber photoUrl candidateBio manifestoPoints position')
       .populate('winner', 'name admissionNumber photoUrl')
-      .sort({ createdAt: -1 })
-      .lean();
+      .sort({ createdAt: -1 });
 
-    console.log(`[getElectionsForStudent] Found ${elections.length} eligible elections`);
+    console.log(`[getElectionsForStudent] Total elections in DB: ${allElections.length}`);
+    // Filter using the model's canStudentVote logic (flexible matching)
+    const eligibleElections = allElections.filter(election => {
+      return election.canStudentVote(student);
+    });
 
+    console.log(`[getElectionsForStudent] Eligible elections after filtering: ${eligibleElections.length} out of ${allElections.length}`);
+    console.log(`[getElectionsForStudent] Eligible election IDs:`, eligibleElections.map(e => ({ id: e._id, title: e.title, type: e.type, status: e.status })));
     // Mark which elections student has already voted in
-    const electionsWithVoteStatus = elections.map(election => ({
-      ...election,
-      hasVoted: Array.isArray(election.voters) && election.voters.some(v => v.student.toString() === studentId)
-    }));
+    const electionsWithVoteStatus = eligibleElections.map(election => {
+      // Use toObject() if it's a mongoose document, or use it as is if lean() was used (but here we didn't use lean to keep methods)
+      const electionObj = election.toObject ? election.toObject() : election;
+      
+      return {
+        ...electionObj,
+        hasVoted: Array.isArray(election.voters) && election.voters.some(v => v.student.toString() === studentId)
+      };
+    });
 
     res.json({ elections: electionsWithVoteStatus });
 

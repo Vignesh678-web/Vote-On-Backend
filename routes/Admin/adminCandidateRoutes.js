@@ -4,6 +4,7 @@ const router = express.Router();
 const adminCandidatectrl = require("../../Controller/Admin/AdminCandidateController");
 const auth = require("../../middleware/auth");
 const requireAdmin = require("../../middleware/requireAdmin");
+
 router.get(
   "/get-candidates",
   auth,
@@ -34,24 +35,22 @@ router.get(
   adminCandidatectrl.getPendingCandidates
 );
 
-
-router.patch("/approve/:studentId", adminCandidatectrl.approveCandidate);
+router.patch("/approve/:studentId", auth, requireAdmin, adminCandidatectrl.approveCandidate);
 
 // PATCH /api/admin/candidates/:id/reject
 router.patch(
-  "/reject/:studentId", adminCandidatectrl.rejectCandidate);
+  "/reject/:studentId", auth, requireAdmin, adminCandidatectrl.rejectCandidate);
 
 // PATCH /api/admin/candidates/:id/revoke - moves approved back to pending
 router.patch(
-  "/revoke/:studentId", adminCandidatectrl.revokeCandidate);
-
+  "/revoke/:studentId", auth, requireAdmin, adminCandidatectrl.revokeCandidate);
 
 // POST /api/admin/candidates/promote-class-winners
-router.put(
+router.post(
   "/promote-class-winners",
+  auth,
+  requireAdmin,
   adminCandidatectrl.promoteClassWinnersToCollege
 );
-
-
 
 module.exports = router;

@@ -13,18 +13,30 @@ module.exports = async (req, res, next) => {
 
     let userRole = (decoded.role || '').toLowerCase();
 
-    // Safety fallback for legacy tokens or missing roles
+    // 🛡️ RECOVERY: If role is missing from token, identify user from DB
     if (!userRole && decoded.id) {
-      userRole = 'student';
+      const Admin = require('../models/Admin/Admin');
+      const isAdmin = await Admin.exists({ _id: decoded.id });
+      if (isAdmin) {
+        userRole = 'admin';
+      } else {
+        const Teacher = require('../models/Teacher/Teacher');
+        const isTeacher = await Teacher.exists({ _id: decoded.id });
+        userRole = isTeacher ? 'teacher' : 'student';
+      }
+      console.log(`[AUTH] Role recovered from DB: ${userRole}`);
     }
 
     req.user = {
       id: decoded.id,
+      adminId: decoded.adminId,
       facultyId: decoded.facultyId,
       role: userRole
     };
 
-    // If student, enrich req.user with department info for guaranteed filtering
+    console.log(`[AUTH] Authenticated ID: ${decoded.id} | Role: ${userRole}`);
+
+    // If student, enrich req.user with department info
     if (userRole === 'student') {
       const Student = require('../models/student/student');
       const student = await Student.findById(decoded.id).select('className section name').lean();
@@ -32,12 +44,10 @@ module.exports = async (req, res, next) => {
         req.user.className = student.className;
         req.user.section = student.section;
         req.user.name = student.name;
-        console.log(`[AUTH] Student identified: ${student.name} (${student.className}/${student.section})`);
-      } else {
-        console.log(`[AUTH] WARNING: Student record not found for ID: ${decoded.id}`);
+        console.log(`[AUTH] Student: ${student.name}`);
       }
     } else {
-      console.log(`[AUTH] Teacher/Admin: ${req.user.id}, Role: ${req.user.role}`);
+      console.log(`[AUTH] User: ${req.user.id}, Role: ${req.user.role}`);
     }
 
     next();

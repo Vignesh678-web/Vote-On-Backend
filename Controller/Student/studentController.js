@@ -77,7 +77,7 @@ exports.verifyOtp = async (req, res) => {
     // OTP is valid
     studentRecord.otp = null;
     studentRecord.otpExpiry = null;
-    studentRecord.isVerified = true;
+    studentRecord.isverified = true;
     await studentRecord.save();
     return res.status(200).json({ message: "OTP verified successfully" });
   } catch (error) {
@@ -101,7 +101,7 @@ exports.loginwithPassword = async (req, res) => {
     const token = jwt.sign(
       { id: studentRecord._id, role: studentRecord.role || "student" },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
     );
     return res.status(200).json({
       message: "Login successful",

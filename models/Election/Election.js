@@ -137,12 +137,29 @@ electionSchema.methods.hasStudentVoted = function (studentId) {
 
 // Method to check if a student can vote in this election
 electionSchema.methods.canStudentVote = function (student) {
-  // For class elections, check class and section match
+  // For class elections, check class and section match (flexible/partial)
   if (this.type === 'class') {
-    return student.className === this.className &&
-      student.section === this.section;
+    const sClass = (student.className || "").toLowerCase();
+    const eClass = (this.className || "").toLowerCase();
+    const sSection = (student.section || "").toLowerCase();
+    const eSection = (this.section || "").toLowerCase();
+
+    const classMatch = sClass.includes(eClass) || eClass.includes(sClass);
+    const sectionMatch = (!sSection && !eSection) || 
+                         (sSection && eSection && (sSection.includes(eSection) || eSection.includes(sSection)));
+
+    console.log(`[canStudentVote] Election: "${this.title}" (${this.type})`);
+    console.log(`[canStudentVote] Student Class: "${student.className}" → normalized: "${sClass}"`);
+    console.log(`[canStudentVote] Election Class: "${this.className}" → normalized: "${eClass}"`);
+    console.log(`[canStudentVote] Student Section: "${student.section}" → normalized: "${sSection}"`);
+    console.log(`[canStudentVote] Election Section: "${this.section}" → normalized: "${eSection}"`);
+    console.log(`[canStudentVote] Class Match: ${classMatch}, Section Match: ${sectionMatch}`);
+    console.log(`[canStudentVote] Final Result: ${classMatch && sectionMatch}`);
+
+    return classMatch && sectionMatch;
   }
   // For college elections, all verified students can vote
+  console.log(`[canStudentVote] Election: "${this.title}" (${this.type}) - College election, allowing all students`);
   return true;
 };
 

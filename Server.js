@@ -13,6 +13,7 @@ const adminAuthRoutes = require("./routes/Admin/adminAuthRoutes");
 const candidateRoutes = require('./routes/Candidate/candidateRoutes')
 const adminCandidateRoutes = require("./routes/Admin/adminCandidateRoutes");
 const electionRoutes = require('./routes/Election/electionRoutes');
+const auditRoutes = require('./routes/Admin/auditRoutes');
 
 
 connectDB();
@@ -34,6 +35,7 @@ app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use("/api/admin/candidates", adminCandidateRoutes);
 app.use('/api/elections', electionRoutes);
+app.use('/api/admin/audit', auditRoutes);
 
 
 app.get("/", (req, res) => {

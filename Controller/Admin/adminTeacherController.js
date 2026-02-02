@@ -47,6 +47,20 @@ exports.createTeacher = async (req, res) => {
 
     await teacher.save();
 
+    //  AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'OFFICER_CREATED',
+        'AUTH',
+        `New faculty officer registered: ${teacher.Name} (${teacher.facultyId})`,
+        req.user.adminId || req.user.facultyId || req.user.id,
+        req.user.role
+      );
+    } catch (logErr) {
+      console.error("Audit log failed:", logErr);
+    }
+
     const out = {
       id: teacher._id,
       facultyId: teacher.facultyId,
@@ -161,6 +175,20 @@ exports.toggleBlockTeacher = async (req, res) => {
 
     teacher.isBlocked = !teacher.isBlocked;
     await teacher.save();
+
+    // 📝 AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'OFFICER_BLOCK_TOGGLED',
+        'AUTH',
+        `Access for officer ${teacher.Name} set to ${teacher.isBlocked ? 'Blocked' : 'Active'}`,
+        req.user.adminId || req.user.facultyId || req.user.id,
+        req.user.role
+      );
+    } catch (logErr) {
+      console.error("Audit log failed:", logErr);
+    }
 
     return res.status(200).json({
       success: true,

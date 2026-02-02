@@ -7,38 +7,25 @@ const adminCtrl = require('../../Controller/Admin/adminTeacherController');
 const auth = require('../../middleware/auth');
 const requireAdmin = require('../../middleware/requireAdmin');
 
-
 router.post(
   '/teacher/create',
   auth,
+  requireAdmin,
   adminCtrl.createTeacher
 );
 
-// router.post(
-//   '/teacher/reset-password',
-//   auth,
-//   requireAdmin,
-//   [
-//     body('facultyId').notEmpty().withMessage('facultyId is required'),
-//     body('newPassword').isLength({ min: 6 }).withMessage('newPassword must be at least 6 chars')
-//   ],
-//   adminCtrl.resetTeacherPassword
-// );
-
 router.get(
   "/teacher/all",
+  auth,
+  requireAdmin,
   adminCtrl.getAllTeachers
 );
 
 router.patch(
   "/teacher/toggle-block/:facultyId",
+  auth,
+  requireAdmin,
   adminCtrl.toggleBlockTeacher
 );
 
-
-
 module.exports = router;
-
-
-
-

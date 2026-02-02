@@ -63,11 +63,11 @@ exports.listStudents = async (req, res) => {
     if (req.query.section) filter.section = req.query.section;
 
     const students = await Student.find(filter)
-      .select("name admissionNumber attendence className section")
+      .select("_id name admissionNumber attendence className section")
       .sort({ createdAt: -1 })
       .lean();
 
-    res.json(students); // ✅ frontend-friendly
+    res.json(students); //  frontend-friendly
   } catch (err) {
     console.error("listStudents error:", err);
     res.status(500).json({

@@ -43,7 +43,7 @@ const studentSchema = new mongoose.Schema(
       default: null,
     },
 
-    attendance: {
+    attendence: {
       type: Number,
       default: 0,
     },
@@ -53,6 +53,24 @@ const studentSchema = new mongoose.Schema(
     iscandidate: {
       type: Boolean,
       default: false, // contesting current election
+    },
+
+    position: {
+      type: String,
+      trim: true,
+      default: null, // e.g., "Class Representative"
+    },
+
+    manifesto: {
+      type: String,
+      trim: true,
+      default: null, // candidate's manifesto text
+    },
+
+    electionStatus: {
+      type: String,
+      enum: ["Draft", "Pending", "Active", "Rejected", null],
+      default: null, // tracks nomination/approval status
     },
 
     hasWon: {
@@ -102,7 +120,7 @@ const studentSchema = new mongoose.Schema(
       default: false,
     },
 
-    isVerified: {
+    isverified: {
       type: Boolean,
       default: false,
     },
