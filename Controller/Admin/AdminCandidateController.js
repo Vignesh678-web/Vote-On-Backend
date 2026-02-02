@@ -206,11 +206,26 @@ exports.getPendingCandidates = async (req, res) => {
 // --- College-level candidates (promoted after class wins) ---
 exports.promoteClassWinnersToCollege = async (req, res) => {
   try {
+    console.log('[promoteClassWinnersToCollege] Starting promotion process...');
+    
+    // First, let's see ALL students who have won
+    const allWinners = await Student.find({ hasWon: true });
+    console.log(`[promoteClassWinnersToCollege] Total students with hasWon=true: ${allWinners.length}`);
+    console.log('[promoteClassWinnersToCollege] All winners:', allWinners.map(w => ({
+      name: w.name,
+      admission: w.admissionNumber,
+      hasWon: w.hasWon,
+      isCollegeCandidate: w.isCollegeCandidate,
+      position: w.position
+    })));
+
     // Find class election winners who are not yet promoted
     const winners = await Student.find({
       hasWon: true,
       isCollegeCandidate: false,
     });
+
+    console.log(`[promoteClassWinnersToCollege] Winners to promote: ${winners.length}`);
 
     if (winners.length === 0) {
       return res.status(200).json({
@@ -221,9 +236,12 @@ exports.promoteClassWinnersToCollege = async (req, res) => {
     }
 
     // Promote them
+    const promotedNames = [];
     for (const student of winners) {
       student.isCollegeCandidate = true;
       await student.save();
+      promotedNames.push(student.name);
+      console.log(`[promoteClassWinnersToCollege] Promoted: ${student.name} (${student.admissionNumber})`);
     }
 
     // 📝 AUDIT LOG
@@ -232,7 +250,7 @@ exports.promoteClassWinnersToCollege = async (req, res) => {
       await logAction(
         'CANDIDATES_PROMOTED',
         'CANDIDATE',
-        `Promoted ${winners.length} class winners to college-level candidacy`,
+        `Promoted ${winners.length} class winners to college-level candidacy: ${promotedNames.join(', ')}`,
         req.user.adminId || req.user.facultyId || req.user.id,
         req.user.role
       );
@@ -240,16 +258,20 @@ exports.promoteClassWinnersToCollege = async (req, res) => {
       console.error("Audit log failed:", logErr);
     }
 
+    console.log(`[promoteClassWinnersToCollege] Successfully promoted ${winners.length} students`);
+
     res.status(200).json({
       success: true,
-      message: "Class election winners promoted to college candidates",
+      message: `Promoted ${winners.length} class election winners to college candidates`,
       promotedCount: winners.length,
+      promotedStudents: promotedNames
     });
   } catch (error) {
-    console.error("Promotion error:", error);
+    console.error("[promoteClassWinnersToCollege] Promotion error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to promote class election winners",
+      error: error.message
     });
   }
 };
@@ -300,9 +322,22 @@ exports.createCandidateByAdmin = async (req, res) => {
 
 exports.getCollegeCandidates = async (req, res) => {
   try {
+    console.log('[getCollegeCandidates] Fetching college-level candidates...');
+    
     const candidates = await Student.find({ isCollegeCandidate: true })
-      .select("name email admissionNumber className section candidateBio manifestoPoints photoUrl votesCount")
+      .select("name email admissionNumber className section position candidateBio manifestoPoints photoUrl votesCount hasWon")
       .sort({ votesCount: -1 });
+
+    console.log(`[getCollegeCandidates] Found ${candidates.length} college candidates`);
+    console.log('[getCollegeCandidates] Candidate details:', candidates.map(c => ({
+      name: c.name,
+      admission: c.admissionNumber,
+      class: c.className,
+      section: c.section,
+      position: c.position,
+      hasWon: c.hasWon,
+      votesCount: c.votesCount
+    })));
 
     res.status(200).json({
       success: true,
