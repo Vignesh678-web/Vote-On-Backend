@@ -410,7 +410,7 @@ exports.listClassElections = async (req, res) => {
     const Election = require('../../models/Election/Election.js');
 
     const elections = await Election.find({ type: 'class' })
-      .populate('candidates.student', 'name admissionNumber photoUrl')
+      .populate('candidates.student', 'name admissionNumber photoUrl className section')
       .populate('winner', 'name')
       .select('title position className section status startDate endDate candidates totalVotes winner')
       .sort({ createdAt: -1 })
@@ -578,6 +578,56 @@ exports.listApprovedCandidates = async (req, res) => {
     });
   } catch (err) {
     console.error("listApprovedCandidates error:", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message
+    });
+  }
+};
+
+
+// Delete/Remove candidate status from a student (Teacher side)
+exports.deleteCandidate = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    if (!studentId) {
+      return res.status(400).json({ message: "studentId is required" });
+    }
+
+    const student = await Student.findById(studentId);
+
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    if (!student.iscandidate) {
+      return res.status(400).json({ message: "This student is not a candidate" });
+    }
+
+    // Reset all candidate-related fields
+    student.iscandidate = false;
+    student.isApproved = false;
+    student.position = null;
+    student.manifesto = null;
+    student.candidateBio = null;
+    student.manifestoPoints = [];
+    student.photoUrl = null;
+    student.electionStatus = null;
+    student.votesCount = 0;
+
+    await student.save();
+
+    return res.json({
+      message: "Candidate status removed successfully",
+      student: {
+        _id: student._id,
+        name: student.name,
+      }
+    });
+
+  } catch (err) {
+    console.error("deleteCandidate error:", err);
     return res.status(500).json({
       message: "Server error",
       error: err.message

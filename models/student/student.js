@@ -50,7 +50,7 @@ const studentSchema = new mongoose.Schema(
 
     /* ===== CLASS ELECTION ===== */
 
-    isCandidate: {
+    iscandidate: {
       type: Boolean,
       default: false, // contesting current election
     },

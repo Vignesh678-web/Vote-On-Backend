@@ -49,7 +49,7 @@ exports.getCandidates = async (req, res) => {
   try {
     const candidates = await Student.find({ iscandidate: true })
       .select(
-        "_id name email admissionNumber attendence iscandidate isApproved isverified position manifesto photoUrl className section electionStatus votesCount createdAt"
+        "_id name email admissionNumber attendence iscandidate isApproved isverified position manifesto candidateBio manifestoPoints photoUrl className section electionStatus votesCount createdAt"
       )
       .sort({ createdAt: -1 })
       .lean();
@@ -86,7 +86,7 @@ exports.rejectCandidate = async (req, res) => {
     // Reset candidate status
     student.iscandidate = false;
     student.isApproved = false;
-    student.electionStatus = null;
+    student.electionStatus = "Rejected";
     student.votesCount = 0;
     student.position = null;
     student.manifesto = null;
@@ -101,6 +101,49 @@ exports.rejectCandidate = async (req, res) => {
 
   } catch (err) {
     console.error("rejectCandidate error:", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message
+    });
+  }
+};
+
+
+// Revoke approval - moves candidate back to pending (keeps candidate status)
+exports.revokeCandidate = async (req, res) => {
+  try {
+    const { studentId } = req.params;
+
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    if (!student.iscandidate) {
+      return res.status(400).json({
+        message: "Student is not a candidate"
+      });
+    }
+
+    if (!student.isApproved) {
+      return res.status(400).json({
+        message: "Candidate is not approved, cannot revoke"
+      });
+    }
+
+    // Only remove approval, keep candidate status
+    student.isApproved = false;
+    student.electionStatus = "Pending";
+
+    await student.save();
+
+    return res.json({
+      message: "Candidate approval revoked. Moved back to pending.",
+      student
+    });
+
+  } catch (err) {
+    console.error("revokeCandidate error:", err);
     return res.status(500).json({
       message: "Server error",
       error: err.message

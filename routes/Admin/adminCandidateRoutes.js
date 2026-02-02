@@ -41,6 +41,10 @@ router.patch("/approve/:studentId", adminCandidatectrl.approveCandidate);
 router.patch(
   "/reject/:studentId", adminCandidatectrl.rejectCandidate);
 
+// PATCH /api/admin/candidates/:id/revoke - moves approved back to pending
+router.patch(
+  "/revoke/:studentId", adminCandidatectrl.revokeCandidate);
+
 
 // POST /api/admin/candidates/promote-class-winners
 router.put(
