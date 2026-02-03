@@ -8,6 +8,7 @@ const requireAdmin = require("../../middleware/requireAdmin");
 router.get(
   "/get-candidates",
   auth,
+  requireAdmin,
   adminCandidatectrl.getCandidates
 );
 

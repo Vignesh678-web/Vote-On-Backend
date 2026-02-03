@@ -69,9 +69,12 @@ exports.login = async (req, res) => {
       message: "Teacher logged in successfully",
       token,
       teacher: {
+        id: teacher._id,
         facultyId: teacher.facultyId,
         email: teacher.email,
         role: teacher.role,
+        Name: teacher.Name,
+        department: teacher.department
       },
     });
 
@@ -146,6 +149,8 @@ exports.verifyOtp = async (req, res) => {
         facultyId: teacher.facultyId,
         email: teacher.email,
         role: teacher.role,
+        Name: teacher.Name,
+        department: teacher.department
       },
     });
 

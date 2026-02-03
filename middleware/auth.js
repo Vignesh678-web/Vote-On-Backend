@@ -15,6 +15,7 @@ module.exports = async (req, res, next) => {
 
     // 🛡️ RECOVERY: If role is missing from token, identify user from DB
     if (!userRole && decoded.id) {
+      console.log(`[AUTH] Role missing in token for ID: ${decoded.id}. Attempting DB recovery...`);
       const Admin = require('../models/Admin/Admin');
       const isAdmin = await Admin.exists({ _id: decoded.id });
       if (isAdmin) {
@@ -25,6 +26,8 @@ module.exports = async (req, res, next) => {
         userRole = isTeacher ? 'teacher' : 'student';
       }
       console.log(`[AUTH] Role recovered from DB: ${userRole}`);
+    } else {
+      console.log(`[AUTH] Role found in token: ${userRole} for ID: ${decoded.id}`);
     }
 
     req.user = {

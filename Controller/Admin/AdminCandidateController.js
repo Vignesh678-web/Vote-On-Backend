@@ -97,8 +97,8 @@ exports.rejectCandidate = async (req, res) => {
       });
     }
 
-    // Reset candidate status
-    student.iscandidate = false;
+    // Reset candidate status but keep as a candidate record for administrative tracking
+    student.iscandidate = true; 
     student.isApproved = false;
     student.electionStatus = "Rejected";
     student.votesCount = 0;

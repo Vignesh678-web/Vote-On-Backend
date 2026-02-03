@@ -429,7 +429,17 @@ exports.castVote = async (req, res) => {
     candidateEntry.votesCount += 1;
     election.voters.push({ student: voterId, votedAt: new Date() });
     election.totalVotes += 1;
+    
+    console.log(`[castVote] Vote recorded:`);
+    console.log(`  Election: "${election.title}" (${election._id})`);
+    console.log(`  Voter: ${voter.name} (${voter.admissionNumber})`);
+    console.log(`  Candidate: ${candidateId}`);
+    console.log(`  New vote count for candidate: ${candidateEntry.votesCount}`);
+    console.log(`  Total votes in election: ${election.totalVotes}`);
+    
     await election.save();
+    
+    console.log(`[castVote] ✅ Vote saved successfully`);
 
     // 📝 AUDIT LOG
     try {
