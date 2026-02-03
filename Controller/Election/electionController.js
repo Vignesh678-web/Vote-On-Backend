@@ -3,6 +3,16 @@ const Student = require('../../models/student/student.js');
 
 // Create a new election (Admin only)
 exports.createElection = async (req, res) => {
+  const userRole = (req.user?.role || "").toLowerCase();
+  const isAuthorized = userRole === 'returning_officer' || userRole === 'admin';
+
+  if (!isAuthorized) {
+    return res.status(403).json({ 
+      message: "Conducting elections is restricted to the Returning Officer and Administrators.",
+      debugRole: req.user?.role
+    });
+  }
+
   try {
     const {
       title,
@@ -235,6 +245,15 @@ exports.scheduleElection = async (req, res) => {
 
 // Start election (Admin only)
 exports.startElection = async (req, res) => {
+  const userRole = (req.user?.role || "").toLowerCase();
+  const isAuthorized = userRole === 'returning_officer' || userRole === 'admin';
+
+  if (!isAuthorized) {
+    return res.status(403).json({ 
+      message: "Only the Returning Officer or Administrator can start elections.",
+      debugRole: req.user?.role
+    });
+  }
   try {
     const { id } = req.params;
 
@@ -256,15 +275,22 @@ exports.startElection = async (req, res) => {
     }
 
     // Check all candidates are approved
+    // For college elections, we consider "hasWon" as approved
     const candidateIds = election.candidates.map(c => c.student);
     const candidates = await Student.find({
       _id: { $in: candidateIds },
-      isApproved: true
+      $or: [
+        { isApproved: true },
+        { hasWon: true },
+        { isCollegeCandidate: true }
+      ]
     });
 
     if (candidates.length < 2) {
       return res.status(400).json({
-        message: "Election needs at least 2 approved candidates to start"
+        message: election.type === 'college' 
+          ? "Election needs at least 2 promoted winners to start"
+          : "Election needs at least 2 approved candidates to start"
       });
     }
 
@@ -282,6 +308,15 @@ exports.startElection = async (req, res) => {
 
 // End election and declare results (Admin only)
 exports.endElection = async (req, res) => {
+  const userRole = (req.user?.role || "").toLowerCase();
+  const isAuthorized = userRole === 'returning_officer' || userRole === 'admin';
+
+  if (!isAuthorized) {
+    return res.status(403).json({ 
+      message: "Only the Returning Officer or Administrator can declare election results.",
+      debugRole: req.user?.role
+    });
+  }
   try {
     const { id } = req.params;
 
@@ -578,6 +613,71 @@ exports.cancelElection = async (req, res) => {
 
   } catch (err) {
     console.error("cancelElection error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Get all class election winners
+exports.getClassWinners = async (req, res) => {
+  try {
+    const winners = await Student.find({ hasWon: true })
+      .select('name admissionNumber photoUrl className section position')
+      .lean();
+
+    res.json({ winners });
+  } catch (err) {
+    console.error("getClassWinners error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Add a class winner to a college election
+exports.addWinnerToCollegeElection = async (req, res) => {
+  try {
+    const { electionId, studentId, position } = req.body;
+
+    if (!electionId || !studentId) {
+      return res.status(400).json({ message: "electionId and studentId are required" });
+    }
+
+    const election = await Election.findById(electionId);
+    if (!election) {
+      return res.status(404).json({ message: "Election not found" });
+    }
+
+    if (election.type !== 'college') {
+      return res.status(400).json({ message: "This operation is only for college-level elections" });
+    }
+
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Student not found" });
+    }
+
+    if (!student.hasWon) {
+      return res.status(400).json({ message: "Only class election winners can be added to college elections" });
+    }
+
+    // Check if already a candidate
+    const alreadyCandidate = election.candidates.some(c => c.student.toString() === studentId);
+    if (alreadyCandidate) {
+      return res.status(400).json({ message: "Student is already a candidate in this election" });
+    }
+
+    election.candidates.push({
+      student: studentId,
+      votesCount: 0
+    });
+
+    // Mark student as a college candidate for persistent tracking
+    student.isCollegeCandidate = true;
+    await student.save();
+
+    await election.save();
+
+    res.json({ message: "Winner added to college election successfully", election });
+  } catch (err) {
+    console.error("addWinnerToCollegeElection error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };

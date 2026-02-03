@@ -40,8 +40,8 @@ exports.registerStudent = async (req, res) => {
       password: "studentPassword123", // Default password for teacher-added students
       admissionNumber: admissionNumber.trim(),
       attendence: attendance, // Corrected spelling to match model
-      className,
-      section,
+      className: className ? className.trim().toUpperCase() : null,
+      section: section ? section.trim().toUpperCase() : null,
       createdBy,
       isverified: true // Teacher added students can be pre-verified
     });
@@ -58,16 +58,49 @@ exports.registerStudent = async (req, res) => {
 exports.listStudents = async (req, res) => {
   try {
     const filter = {};
+    const Teacher = require('../../models/Teacher/Teacher');
 
-    if (req.query.className) filter.className = req.query.className;
-    if (req.query.section) filter.section = req.query.section;
+    console.log(`[LIST_STUDENTS] Role: ${req.user.role}, ID: ${req.user.id}`);
+
+    // If requester is a teacher, strictly filter by their assigned class/section
+    if (req.user.role === 'teacher') {
+      const professor = await Teacher.findById(req.user.id);
+      
+      if (!professor) {
+        console.warn(`[LIST_STUDENTS] Teacher not found for ID: ${req.user.id}`);
+        return res.json([]);
+      }
+
+      console.log(`[LIST_STUDENTS] professor found: ${professor.Name}, Class: ${professor.className}, Section: ${professor.section}`);
+
+      if (professor.className && professor.section) {
+        // Use case-insensitive regex for robust matching
+        filter.className = { $regex: new RegExp(`^${professor.className.trim()}$`, 'i') };
+        filter.section = { $regex: new RegExp(`^${professor.section.trim()}$`, 'i') };
+      } else {
+        console.warn(`[LIST_STUDENTS] Teacher ${professor.Name} has incomplete assignment.`);
+        // If teacher has no assignment, they see nothing
+        return res.json([]);
+      }
+    } else {
+      // Admins and Returning Officers can use query params
+      if (req.query.className) {
+        filter.className = { $regex: new RegExp(`^${String(req.query.className).trim()}$`, 'i') };
+      }
+      if (req.query.section) {
+        filter.section = { $regex: new RegExp(`^${String(req.query.section).trim()}$`, 'i') };
+      }
+    }
+
+    console.log(`[LIST_STUDENTS] Applying filter:`, filter);
 
     const students = await Student.find(filter)
-      .select("_id name admissionNumber attendence className section")
+      .select("_id name admissionNumber attendence className section iscandidate isApproved isverified")
       .sort({ createdAt: -1 })
       .lean();
 
-    res.json(students); //  frontend-friendly
+    console.log(`[LIST_STUDENTS] Found ${students.length} students.`);
+    res.json(students);
   } catch (err) {
     console.error("listStudents error:", err);
     res.status(500).json({
@@ -812,9 +845,9 @@ exports.GetCandidateDetailsForTeacher = async (req, res) => {
       });
     }
 
-    if (!student.iscandidate || !student.isApproved) {
+    if (!student.iscandidate) {
       return res.status(403).json({
-        message: "Candidate is not approved",
+        message: "Student is not a candidate",
       });
     }
 

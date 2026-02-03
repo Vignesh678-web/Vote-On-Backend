@@ -4,8 +4,9 @@ module.exports = (req, res, next) => {
     return res.status(401).json({ message: 'Unauthorized: No session found' });
   }
 
-  if (req.user.role !== 'admin' && req.user.role !== 'teacher') {
-    console.warn(`[ACL] REJECTED: User ${req.user.id} has role '${req.user.role}', but 'admin' or 'teacher' is required for ${req.method} ${req.originalUrl}`);
+  const allowedRoles = ['admin', 'teacher', 'returning_officer'];
+  if (!allowedRoles.includes(req.user.role)) {
+    console.warn(`[ACL] REJECTED: User ${req.user.id} has role '${req.user.role}', but administrative access is required.`);
     return res.status(403).json({ 
       success: false,
       message: `Access Denied: Administrative privileges required. Your current role is '${req.user.role}'.`,

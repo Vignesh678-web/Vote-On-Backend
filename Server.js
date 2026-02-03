@@ -44,5 +44,20 @@ app.get("/", (req, res) => {
 
 
 
-app.listen(process.env.PORT || 5000, () => console.log(`Server running on port ${process.env.port || 5000}`)
-);
+app.listen(process.env.PORT || 5000, async () => {
+  console.log(`Server running on port ${process.env.port || 5000}`);
+  
+  // Log system startup
+  try {
+    const { logAction } = require('./Controller/Audit/AuditController');
+    await logAction(
+      'SYSTEM_STARTUP',
+      'SYSTEM',
+      `Voting system backend initialized on port ${process.env.PORT || 5000}`,
+      'SYSTEM_DAEMON',
+      'system'
+    );
+  } catch (err) {
+    console.error("Startup audit log failed:", err);
+  }
+});

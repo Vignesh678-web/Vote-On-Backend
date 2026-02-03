@@ -17,7 +17,12 @@ const TeacherSchema = new mongoose.Schema({
   email: { type: String, trim: true, lowercase: true },
   password: { type: String, required: [true, 'password is required'] },
 
-  role: { type: String, enum: ['admin', 'teacher'], default: 'teacher' },
+  role: { type: String, enum: ['admin', 'teacher', 'returning_officer'], default: 'teacher' },
+  
+  // Assigned class for 'teacher' role
+  className: { type: String },
+  section: { type: String },
+
   otp: String,
   otpExpiry: Date,
 

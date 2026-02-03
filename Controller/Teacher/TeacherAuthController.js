@@ -74,7 +74,9 @@ exports.login = async (req, res) => {
         email: teacher.email,
         role: teacher.role,
         Name: teacher.Name,
-        department: teacher.department
+        department: teacher.department,
+        className: teacher.className,
+        section: teacher.section
       },
     });
 
@@ -150,7 +152,9 @@ exports.verifyOtp = async (req, res) => {
         email: teacher.email,
         role: teacher.role,
         Name: teacher.Name,
-        department: teacher.department
+        department: teacher.department,
+        className: teacher.className,
+        section: teacher.section
       },
     });
 

@@ -11,6 +11,12 @@ router.post('/create', auth, electionController.createElection);
 // Get all elections
 router.get('/', auth, electionController.getAllElections);
 
+// Get class winners
+router.get('/class-winners', auth, electionController.getClassWinners);
+
+// Add winner to college election
+router.post('/add-college-candidate', auth, electionController.addWinnerToCollegeElection);
+
 // ============ STUDENT ROUTES (MUST BE BEFORE :id ROUTES) ============
 
 // Get elections student can vote in

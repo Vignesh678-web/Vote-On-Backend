@@ -4,6 +4,15 @@ const Student = require('../../models/student/student.js')
 
 
 exports.approveCandidate = async (req, res) => {
+  const userRole = (req.user?.role || "").toLowerCase();
+  const isAuthorized = userRole === 'returning_officer' || userRole === 'admin';
+
+  if (!isAuthorized) {
+    return res.status(403).json({ 
+      message: "Only the Returning Officer or Administrator can approve candidates.",
+      debugRole: req.user?.role
+    });
+  }
   try {
     const { studentId } = req.params;
 
@@ -61,7 +70,13 @@ exports.getCandidates = async (req, res) => {
   console.log("Fetching candidates...");
 
   try {
-    const candidates = await Student.find({ iscandidate: true })
+    // Fetch anyone who is currently a candidate OR was rejected
+    const candidates = await Student.find({ 
+      $or: [
+        { iscandidate: true },
+        { electionStatus: "Rejected" }
+      ]
+    })
       .select(
         "_id name email admissionNumber attendence iscandidate isApproved isverified isCollegeCandidate position manifesto candidateBio manifestoPoints photoUrl className section electionStatus votesCount createdAt"
       )
@@ -82,6 +97,15 @@ exports.getCandidates = async (req, res) => {
 
 //candidate rejection by admin
 exports.rejectCandidate = async (req, res) => {
+  const userRole = (req.user?.role || "").toLowerCase();
+  const isAuthorized = userRole === 'returning_officer' || userRole === 'admin';
+
+  if (!isAuthorized) {
+    return res.status(403).json({ 
+      message: "Only the Returning Officer or Administrator can reject candidates.",
+      debugRole: req.user?.role
+    });
+  }
   try {
     const { studentId } = req.params;
 
@@ -97,14 +121,15 @@ exports.rejectCandidate = async (req, res) => {
       });
     }
 
-    // Reset candidate status but keep as a candidate record for administrative tracking
+    // 🛡️ SECURITY: Mark as rejected but KEEP details for administrative review
+    // We keep iscandidate = true so they stay in the admin manage list
     student.iscandidate = true; 
     student.isApproved = false;
     student.electionStatus = "Rejected";
     student.votesCount = 0;
-    student.position = null;
-    student.manifesto = null;
-    student.photoUrl = null; // optional: remove campaign photo
+    
+    // We NO LONGER nullify position and manifesto here, 
+    // so the admin can see WHAT they rejected.
 
     await student.save();
 
@@ -249,7 +274,7 @@ exports.promoteClassWinnersToCollege = async (req, res) => {
       const { logAction } = require('../Audit/AuditController');
       await logAction(
         'CANDIDATES_PROMOTED',
-        'CANDIDATE',
+        'SYSTEM',
         `Promoted ${winners.length} class winners to college-level candidacy: ${promotedNames.join(', ')}`,
         req.user.adminId || req.user.facultyId || req.user.id,
         req.user.role

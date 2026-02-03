@@ -16,12 +16,13 @@ exports.createTeacher = async (req, res) => {
       password,
       email,
       role,
+      className,
+      section
     } = req.body;
 
-    if (!facultyId || !Name  || !password) {
+    if (!facultyId || !Name || !password) {
       return res.status(400).json({
-        message:
-          "facultyId,Name and password are required",
+        message: "facultyId, Name and password are required",
       });
     }
 
@@ -41,8 +42,9 @@ exports.createTeacher = async (req, res) => {
       department: department,
       email: email ? email.toLowerCase() : undefined,
       password: hashed,
-      role: role === "admin" ? "admin" : "teacher", // default teacher
-      // isBlocked will default to false from schema
+      role: ['admin', 'teacher', 'returning_officer'].includes(role) ? role : 'teacher',
+      className: role === 'teacher' ? (className ? className.trim().toUpperCase() : undefined) : undefined,
+      section: role === 'teacher' ? (section ? section.trim().toUpperCase() : undefined) : undefined,
     });
 
     await teacher.save();
