@@ -42,6 +42,9 @@ router.put('/:id/start', auth, electionController.startElection);
 // End election
 router.put('/:id/end', auth, electionController.endElection);
 
+// Resolve tie
+router.put('/:id/resolve-tie', auth, electionController.resolveTie);
+
 // Cancel election
 router.put('/:id/cancel', auth, electionController.cancelElection);
 

@@ -10,7 +10,8 @@ const {
   login,
   veriffffyOtp,
   getProfile,
-  updateProfile
+  updateProfile,
+  updatePassword
 } = require("../../Controller/Admin/AdminAuthController");
 const { veriffyOtp } = require('../../Controller/Student/studentController');
 
@@ -18,6 +19,7 @@ router.post ('/login',login);
 router.post('/create',createAdmin);
 router.post('/verify-ottp',veriffffyOtp);
 router.put('/update-profile', auth, updateProfile);
+router.put('/update-password', auth, updatePassword);
 
 
 

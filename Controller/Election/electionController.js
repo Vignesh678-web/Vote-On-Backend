@@ -148,12 +148,26 @@ exports.addCandidateToElection = async (req, res) => {
       return res.status(404).json({ message: "Student not found" });
     }
 
-    // Check if student is already a candidate
-    const alreadyCandidate = election.candidates.some(
+    // Check if student is already a candidate in THIS election
+    const alreadyInThisElection = election.candidates.some(
       c => c.student.toString() === studentId
     );
-    if (alreadyCandidate) {
+    if (alreadyInThisElection) {
       return res.status(400).json({ message: "Student is already a candidate in this election" });
+    }
+
+    // Check if student is already a candidate for the SAME position in any other ACTIVE/SCHEDULED election
+    const otherElectionWithSamePosition = await Election.findOne({
+      _id: { $ne: electionId },
+      position: election.position,
+      status: { $in: ['Draft', 'Scheduled', 'Active', 'Tie'] },
+      'candidates.student': studentId
+    });
+
+    if (otherElectionWithSamePosition) {
+      return res.status(400).json({ 
+        message: `Student is already contesting for the position of "${election.position}" in the election: "${otherElectionWithSamePosition.title}".` 
+      });
     }
 
     // Check attendance requirement
@@ -306,7 +320,7 @@ exports.startElection = async (req, res) => {
   }
 };
 
-// End election and declare results (Admin only)
+// End election and declare results (Admin/RO only)
 exports.endElection = async (req, res) => {
   const userRole = (req.user?.role || "").toLowerCase();
   const isAuthorized = userRole === 'returning_officer' || userRole === 'admin';
@@ -331,12 +345,29 @@ exports.endElection = async (req, res) => {
       return res.status(400).json({ message: "Only active elections can be ended" });
     }
 
+    // Sort candidates by votes to find ties
+    const sorted = [...election.candidates].sort((a, b) => b.votesCount - a.votesCount);
+    
+    // Check for tie
+    if (sorted.length >= 2 && sorted[0].votesCount === sorted[1].votesCount) {
+      election.status = 'Tie';
+      await election.save();
+      
+      return res.json({
+        message: "Election ended in a tie. Please perform a toss to break the tie.",
+        isTie: true,
+        tiedCandidates: sorted.filter(c => c.votesCount === sorted[0].votesCount).map(c => ({
+          studentId: c.student._id || c.student,
+          name: c.student.name || "Unknown",
+          votes: c.votesCount
+        }))
+      });
+    }
+
     // Find winner
     let winner = null;
     if (election.candidates.length > 0) {
-      const winnerCandidate = election.candidates.reduce((a, b) =>
-        a.votesCount > b.votesCount ? a : b
-      );
+      const winnerCandidate = sorted[0];
       winner = winnerCandidate.student;
       election.winner = winnerCandidate.student._id || winnerCandidate.student;
 
@@ -389,7 +420,67 @@ exports.endElection = async (req, res) => {
 
   } catch (err) {
     console.error("endElection error:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// Resolve election tie with a toss (RO only)
+exports.resolveTie = async (req, res) => {
+  const userRole = (req.user?.role || "").toLowerCase();
+  if (userRole !== 'returning_officer' && userRole !== 'admin') {
+    return res.status(403).json({ message: "Unauthorized: only RO can resolve ties" });
+  }
+
+  try {
+    const { id } = req.params;
+    const { winnerId } = req.body; // RO can pick or system toss then RO confirms
+
+    const election = await Election.findById(id).populate('candidates.student');
+    if (!election) return res.status(404).json({ message: "Election not found" });
+
+    if (election.status !== 'Tie') {
+      return res.status(400).json({ message: "This election does not have a tie status" });
+    }
+
+    const winnerCandidate = election.candidates.find(c => 
+      (c.student._id || c.student).toString() === winnerId
+    );
+
+    if (!winnerCandidate) {
+      return res.status(400).json({ message: "Invalid candidate selected as winner" });
+    }
+
+    election.winner = winnerId;
+    election.status = 'Completed';
+    election.endDate = new Date();
+    await election.save();
+
+    // Mark student as winner
+    const update = { 
+      hasWon: true,
+      votesCount: winnerCandidate.votesCount,
+      position: election.position
+    };
+    if (election.type === 'class') update.isCollegeCandidate = true;
+    await Student.findByIdAndUpdate(winnerId, update);
+
+    // AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'TIE_RESOLVED',
+        'ELECTION',
+        `Election tie resolved manually/via toss for "${election.title}". Winner: ${winnerCandidate.student.name}`,
+        req.user.id,
+        req.user.role
+      );
+    } catch (e) {}
+
+    res.json({ message: "Tie resolved successfully", winner: winnerCandidate.student.name });
+
+  } catch (err) {
+    console.error("resolveTie error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -658,10 +749,24 @@ exports.addWinnerToCollegeElection = async (req, res) => {
       return res.status(400).json({ message: "Only class election winners can be added to college elections" });
     }
 
-    // Check if already a candidate
-    const alreadyCandidate = election.candidates.some(c => c.student.toString() === studentId);
-    if (alreadyCandidate) {
+    // Check if already a candidate in THIS election
+    const alreadyInThisElection = election.candidates.some(c => c.student.toString() === studentId);
+    if (alreadyInThisElection) {
       return res.status(400).json({ message: "Student is already a candidate in this election" });
+    }
+
+    // Check if already a candidate for the SAME position in any other ACTIVE/SCHEDULED election
+    const otherElectionWithSamePosition = await Election.findOne({
+      _id: { $ne: electionId },
+      position: election.position,
+      status: { $in: ['Draft', 'Scheduled', 'Active', 'Tie'] },
+      'candidates.student': studentId
+    });
+
+    if (otherElectionWithSamePosition) {
+      return res.status(400).json({ 
+        message: `Student is already contesting for the position of "${election.position}" in another college-level election: "${otherElectionWithSamePosition.title}".` 
+      });
     }
 
     election.candidates.push({

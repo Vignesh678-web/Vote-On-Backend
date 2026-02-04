@@ -400,19 +400,40 @@ exports.endClassElection = async (req, res) => {
       return res.status(400).json({ message: "Election is not active" });
     }
 
+    // Sort candidates by votes to find ties
+    const sorted = [...election.candidates].sort((a, b) => (b.votesCount || 0) - (a.votesCount || 0));
+
+    // Check for tie
+    if (sorted.length >= 2 && sorted[0].votesCount > 0 && sorted[0].votesCount === sorted[1].votesCount) {
+      election.status = 'Tie';
+      await election.save();
+      
+      return res.json({
+        message: "Election ended in a tie. Please perform a toss to break the tie.",
+        isTie: true,
+        tiedCandidates: sorted.filter(c => c.votesCount === sorted[0].votesCount).map(c => ({
+          studentId: c.student?._id || c.student,
+          name: c.student?.name || "Unknown",
+          votes: c.votesCount
+        }))
+      });
+    }
+
     let winnerStudent = null;
 
     if (election.candidates.length > 0) {
-      const winnerCandidate = election.candidates.reduce((a, b) =>
-        a.votesCount > b.votesCount ? a : b
-      );
-
+      const winnerCandidate = sorted[0];
       winnerStudent = winnerCandidate.student;
 
       // ✅ SAVE RESULT INTO STUDENT MODEL
       await Student.findByIdAndUpdate(
         winnerStudent._id,
-        { hasWon: true },
+        { 
+          hasWon: true,
+          isCollegeCandidate: true, // Promote class winner to college level
+          votesCount: winnerCandidate.votesCount,
+          position: election.position
+        },
         { new: true }
       );
 
@@ -424,7 +445,8 @@ exports.endClassElection = async (req, res) => {
     await election.save();
 
     res.json({
-      message: "Class election ended",
+      message: "Class election ended successfully",
+      isTie: false,
       winner: {
         id: winnerStudent?._id,
         name: winnerStudent?.name,

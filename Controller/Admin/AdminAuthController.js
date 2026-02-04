@@ -244,6 +244,59 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+exports.updatePassword = async (req, res) => {
+  try {
+    const id = req.user?.id;
+    const role = req.user?.role;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!id) return res.status(401).json({ message: 'Unauthorized' });
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new passwords are required' });
+    }
+
+    let user;
+    if (role === 'admin') {
+      user = await Admin.findById(id);
+    } else {
+      const Teacher = require('../../models/Teacher/Teacher');
+      user = await Teacher.findById(id);
+    }
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Incorrect current password' });
+    }
+
+    // Hash and save new password
+    const hashed = await bcrypt.hash(newPassword, 10);
+    user.password = hashed;
+    await user.save();
+
+    // 📝 AUDIT LOG
+    try {
+      const { logAction } = require('../Audit/AuditController');
+      await logAction(
+        'PASSWORD_CHANGED',
+        'AUTH',
+        `User ${user.Name || user.adminId || user.facultyId} updated their security credentials`,
+        user.adminId || user.facultyId || user.id,
+        role
+      );
+    } catch (logErr) {
+      console.error("Audit log failed:", logErr);
+    }
+
+    return res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err) {
+    console.error('admin.updatePassword error:', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
 exports.veriffffyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;

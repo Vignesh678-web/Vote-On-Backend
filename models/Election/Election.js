@@ -49,10 +49,10 @@ const electionSchema = new mongoose.Schema({
     required: [true, 'End date is required']
   },
 
-  // Election status workflow: Draft → Scheduled → Active → Completed/Cancelled
+  // Election status workflow: Draft → Scheduled → Active → Tie → Completed/Cancelled
   status: {
     type: String,
-    enum: ['Draft', 'Scheduled', 'Active', 'Completed', 'Cancelled'],
+    enum: ['Draft', 'Scheduled', 'Active', 'Tie', 'Completed', 'Cancelled'],
     default: 'Draft'
   },
 
